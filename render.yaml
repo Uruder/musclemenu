@@ -1,6 +1,6 @@
 services:
   - name: musclemenu-bot
-    type: worker
+    type: web
     env: python
     plan: free
     buildCommand: "pip install -r requirements.txt"
@@ -10,3 +10,4 @@ services:
         sync: false
       - key: DATABASE_URL
         sync: false
+ healthCheckPath: "/"
