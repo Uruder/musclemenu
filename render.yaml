@@ -1,0 +1,12 @@
+services:
+  - name: musclemenu-bot
+    type: web
+    env: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python bot/main.py"
+    envVars:
+      - key: TOKEN
+        sync: false
+      - key: DATABASE_URL
+        sync: false
