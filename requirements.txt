@@ -2,3 +2,4 @@ aiogram==2.24
 asyncpg==0.27.0
 sqlalchemy==2.0.17
 psycopg2==2.9.6
+python-dotenv
