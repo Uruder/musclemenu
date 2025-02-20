@@ -17,3 +17,27 @@ async def start(message: types.Message):
 
 if __name__ == '__main__':
     executor.start_polling(dp, skip_updates=True)
+    
+import os
+from flask import Flask
+from threading import Thread
+
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Bot is running!", 200
+
+def run_flask():
+    port = int(os.getenv("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
+
+if __name__ == "__main__":
+    from aiogram import executor
+    from bot import dp
+
+    # Запускаем Flask сервер в отдельном потоке
+    Thread(target=run_flask, daemon=True).start()
+
+    # Запускаем Telegram-бота
+    executor.start_polling(dp, skip_updates=True)
