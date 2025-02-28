@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from database import Database
 from datetime import datetime, timedelta
 from aiogram.fsm.state import State, StatesGroup
-import asyncio
+from aiogram.fsm.context import FSMContext  # Добавлен импорт
 
 # Загрузка переменных окружения
 load_dotenv()
