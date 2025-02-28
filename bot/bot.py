@@ -3,14 +3,12 @@ import os
 import random
 import aiohttp
 from aiogram import Bot, Dispatcher, types
-from aiogram.utils.executor import start_webhook
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
-from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+from aiohttp import web
 from dotenv import load_dotenv
 from database import Database
 from datetime import datetime, timedelta
+import asyncio
 
 # Загрузка переменных окружения
 load_dotenv()
@@ -25,16 +23,12 @@ GROK_API_KEY = os.getenv("GROK_API_KEY")
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 
-# Инициализация бота и базы данных
+# Инициализация бота и диспетчера
 bot = Bot(token=BOT_TOKEN)
-storage = MemoryStorage()
-dp = Dispatcher(bot, storage=storage)
-db = Database()
+dp = Dispatcher()
 
-# Ограничение запросов к API
-API_REQUESTS_PER_DAY = 50
-api_requests_today = 0
-last_reset = datetime.now()
+# База данных
+db = Database()
 
 # База рецептов
 RECIPES = [
@@ -46,24 +40,9 @@ RECIPES = [
 
 # Мотивационные цитаты
 QUOTES = {
-    "ru": [
-        "💪 Сила в дисциплине, а не в мотивации!",
-        "🏋️‍♂️ Каждый шаг приближает тебя к цели!",
-        "🍗 Ешь, чтобы расти!",
-        "🏋️ Ты сильнее, чем думаешь!"
-    ],
-    "en": [
-        "💪 Strength lies in discipline, not motivation!",
-        "🏋️‍♂️ Every step brings you closer to your goal!",
-        "🍗 Eat to grow!",
-        "🏋️ You’re stronger than you think!"
-    ],
-    "uk": [
-        "💪 Сила в дисципліні, а не в мотивації!",
-        "🏋️‍♂️ Кожен крок наближає тебе до мети!",
-        "🍗 Їж, щоб рости!",
-        "🏋️ Ти сильніший, ніж думаєш!"
-    ]
+    "ru": ["💪 Сила в дисциплине!"],
+    "en": ["💪 Strength lies in discipline!"],
+    "uk": ["💪 Сила в дисципліні!"]
 }
 
 # Тексты на разных языках
@@ -78,22 +57,12 @@ TEXTS = {
         "workouts": "Сколько у тебя тренировок в неделю?",
         "preferences": "Какие продукты ты любишь? (Например: 🍗 курица, 🥚 яйца, 🍚 рис)\nОставь пустым, если нет предпочтений.",
         "saved": "✅ *Данные сохранены!* Что дальше?",
-        "profile": "👤 *Личный кабинет*",
-        "weekly_plan": "📅 *Твой недельный план питания* 💪",
         "daily_plan": "🍽 *Дневной рацион* 🍽",
-        "update_weight": "⚖️ Укажи свой текущий вес (в кг):",
-        "weight_updated": "✅ Вес обновлен! Проверь прогресс в личном кабинете.",
-        "guess_game": "🎲 *Угадай калорийность!*",
-        "guess_prompt": "Сколько калорий? Укажи число!",
-        "guess_correct": "🎉 Отлично! Ты угадал почти точно!\nПравильный ответ: `{actual} ккал`\nТвой ответ: `{guess} ккал`",
-        "guess_wrong": "🤔 Неплохо, но не совсем! Правильный ответ: `{actual} ккал`\nТвой ответ: `{guess} ккал`",
         "payment_success": "🎉 Спасибо за покупку!",
-        "register_first": "Сначала зарегистрируйся!",
-        "back_to_main": "💪 *MuscleMenu* — твой помощник в наборе массы!\nЧто дальше?",
-        "my_day": "📊 *Мой день*",
-        "random_tip": "💡 *Случайный совет*",
         "subscription_end": "⏰ Твоя подписка заканчивается через {days} дней! Продли за 500 UAH или 50 XTR.",
-        "subscription_expired": "⚠️ Твоя подписка закончилась. Доступ к дневному рациону ограничен."
+        "subscription_expired": "⚠️ Твоя подписка закончилась. Доступ к дневному рациону ограничен.",
+        "register_first": "Сначала зарегистрируйся!",
+        "back_to_main": "💪 *MuscleMenu* — твой помощник в наборе массы!\nЧто дальше?"
     },
     "en": {
         "welcome": "💪 *Hello! I’m MuscleMenu!* I’ll help you gain mass.\nLet’s get you registered. What’s your name?",
@@ -105,22 +74,12 @@ TEXTS = {
         "workouts": "How many workouts do you have per week?",
         "preferences": "What foods do you like? (E.g., 🍗 chicken, 🥚 eggs, 🍚 rice)\nLeave empty if no preferences.",
         "saved": "✅ *Data saved!* What’s next?",
-        "profile": "👤 *Profile*",
-        "weekly_plan": "📅 *Your Weekly Nutrition Plan* 💪",
         "daily_plan": "🍽 *Daily Meal Plan* 🍽",
-        "update_weight": "⚖️ Enter your current weight (in kg):",
-        "weight_updated": "✅ Weight updated! Check your progress in your profile.",
-        "guess_game": "🎲 *Guess the Calories!*",
-        "guess_prompt": "How many calories? Enter a number!",
-        "guess_correct": "🎉 Great job! Almost spot on!\nCorrect answer: `{actual} kcal`\nYour guess: `{guess} kcal`",
-        "guess_wrong": "🤔 Not bad, but not quite! Correct answer: `{actual} kcal`\nYour guess: `{guess} kcal`",
         "payment_success": "🎉 Thank you for your purchase!",
-        "register_first": "Register first!",
-        "back_to_main": "💪 *MuscleMenu* — your mass-gaining assistant!\nWhat’s next?",
-        "my_day": "📊 *My Day*",
-        "random_tip": "💡 *Random Tip*",
         "subscription_end": "⏰ Your subscription ends in {days} days! Renew for 500 UAH or 50 XTR.",
-        "subscription_expired": "⚠️ Your subscription has expired. Access to daily meal plans is restricted."
+        "subscription_expired": "⚠️ Your subscription has expired. Access to daily meal plans is restricted.",
+        "register_first": "Register first!",
+        "back_to_main": "💪 *MuscleMenu* — your mass-gaining assistant!\nWhat’s next?"
     },
     "uk": {
         "welcome": "💪 *Привіт! Я MuscleMenu!* Допоможу тобі набрати масу.\nДавай зареєструємо тебе. Як тебе звати?",
@@ -132,26 +91,15 @@ TEXTS = {
         "workouts": "Скільки у тебе тренувань на тиждень?",
         "preferences": "Які продукти ти любиш? (Наприклад: 🍗 курка, 🥚 яйця, 🍚 рис)\nЗалиш порожнім, якщо немає вподобань.",
         "saved": "✅ *Дані збережено!* Що далі?",
-        "profile": "👤 *Особистий кабінет*",
-        "weekly_plan": "📅 *Твій тижневий план харчування* 💪",
         "daily_plan": "🍽 *Денний раціон* 🍽",
-        "update_weight": "⚖️ Вкажи свою поточну вагу (в кг):",
-        "weight_updated": "✅ Вага оновлена! Перевір прогрес у особистому кабінеті.",
-        "guess_game": "🎲 *Вгадай калорійність!*",
-        "guess_prompt": "Скільки калорій? Вкажи число!",
-        "guess_correct": "🎉 Чудово! Ти вгадав майже точно!\nПравильна відповідь: `{actual} ккал`\nТвоя відповідь: `{guess} ккал`",
-        "guess_wrong": "🤔 Непогано, але не зовсім! Правильна відповідь: `{actual} ккал`\nТвоя відповідь: `{guess} ккал`",
         "payment_success": "🎉 Дякую за покупку!",
-        "register_first": "Спочатку зареєструйся!",
-        "back_to_main": "💪 *MuscleMenu* — твій помічник у наборі маси!\nЩо далі?",
-        "my_day": "📊 *Мій день*",
-        "random_tip": "💡 *Випадкова порада*",
         "subscription_end": "⏰ Твоя підписка закінчується через {days} днів! Продовж за 500 UAH або 50 XTR.",
-        "subscription_expired": "⚠️ Твоя підписка закінчилася. Доступ до денного раціону обмежено."
+        "subscription_expired": "⚠️ Твоя підписка закінчилася. Доступ до денного раціону обмежено.",
+        "register_first": "Спочатку зареєструйся!",
+        "back_to_main": "💪 *MuscleMenu* — твій помічник у наборі маси!\nЩо далі?"
     }
 }
 
-# Состояния для опроса
 class UserForm(StatesGroup):
     name = State()
     height = State()
@@ -161,23 +109,13 @@ class UserForm(StatesGroup):
     workouts = State()
     preferences = State()
 
-# Главное меню
 def get_main_menu(language="ru"):
     return InlineKeyboardMarkup().row(
-        InlineKeyboardButton("📅", callback_data="weekly_plan"),
         InlineKeyboardButton("🍽", callback_data="daily_plan")
     ).row(
-        InlineKeyboardButton("👤", callback_data="profile"),
-        InlineKeyboardButton("⚖️", callback_data="update_weight")
-    ).row(
-        InlineKeyboardButton("🎲", callback_data="guess_game"),
-        InlineKeyboardButton("📊", callback_data="my_day")
-    ).row(
-        InlineKeyboardButton("💡", callback_data="random_tip"),
         InlineKeyboardButton("🌐 Язык" if language == "ru" else "🌐 Language" if language == "en" else "🌐 Мова", callback_data="switch_language")
     )
 
-# Меню с кнопкой "Назад" и "Поделиться"
 def get_back_menu(text_to_share="", language="ru"):
     markup = InlineKeyboardMarkup().add(InlineKeyboardButton("⬅️ Назад" if language == "ru" else "⬅️ Back" if language == "en" else "⬅️ Назад", callback_data="back_to_main"))
     if text_to_share:
@@ -375,7 +313,7 @@ async def successful_payment(message: types.Message):
 
 async def send_reminders():
     while True:
-        await asyncio.sleep(24 * 60 * 60)  # Каждые 24 часа
+        await asyncio.sleep(24 * 60 * 60)
         async with db.pool.acquire() as conn:
             users = await conn.fetch("SELECT user_id, language FROM users")
             now = datetime.now()
@@ -393,27 +331,22 @@ async def send_reminders():
                         msg += f"\n\n{TEXTS[language]['subscription_expired']}"
                 await bot.send_message(user["user_id"], msg, reply_markup=get_main_menu(language))
 
-async def on_startup(_):
+async def on_startup(dispatcher):
     await db.connect()
     await db.create_tables()
     await bot.set_webhook(WEBHOOK_URL)
     asyncio.create_task(send_reminders())
     logging.info(f"Webhook установлен на {WEBHOOK_URL}")
 
-async def on_shutdown(_):
+async def on_shutdown(dispatcher):
     await bot.delete_webhook()
-    await dp.storage.close()
-    await dp.storage.wait_closed()
     await db.pool.close()
     logging.info("Webhook остановлен")
 
+app = web.Application()
+request_handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
+request_handler.register(app, path=WEBHOOK_PATH)
+setup_application(app, dp, bot=bot)
+
 if __name__ == "__main__":
-    start_webhook(
-        dispatcher=dp,
-        webhook_path=WEBHOOK_PATH,
-        on_startup=on_startup,
-        on_shutdown=on_shutdown,
-        skip_updates=True,
-        host=WEBAPP_HOST,
-        port=WEBAPP_PORT,
-    )
+    web.run_app(app, host=WEBAPP_HOST, port=WEBAPP_PORT)
