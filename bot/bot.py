@@ -8,7 +8,7 @@ from aiohttp import web
 from dotenv import load_dotenv
 from database import Database
 from datetime import datetime, timedelta
-import asyncio
+from aiogram.fsm.state import State, StatesGroup  # Добавлен импорт
 
 # Загрузка переменных окружения
 load_dotenv()
@@ -100,6 +100,7 @@ TEXTS = {
     }
 }
 
+# Определение состояний FSM
 class UserForm(StatesGroup):
     name = State()
     height = State()
@@ -109,6 +110,7 @@ class UserForm(StatesGroup):
     workouts = State()
     preferences = State()
 
+# Главное меню
 def get_main_menu(language="ru"):
     return InlineKeyboardMarkup().row(
         InlineKeyboardButton("🍽", callback_data="daily_plan")
@@ -116,6 +118,7 @@ def get_main_menu(language="ru"):
         InlineKeyboardButton("🌐 Язык" if language == "ru" else "🌐 Language" if language == "en" else "🌐 Мова", callback_data="switch_language")
     )
 
+# Меню с кнопкой "Назад" и "Поделиться"
 def get_back_menu(text_to_share="", language="ru"):
     markup = InlineKeyboardMarkup().add(InlineKeyboardButton("⬅️ Назад" if language == "ru" else "⬅️ Back" if language == "en" else "⬅️ Назад", callback_data="back_to_main"))
     if text_to_share:
