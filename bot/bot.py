@@ -9,7 +9,8 @@ from dotenv import load_dotenv
 from database import Database
 from datetime import datetime, timedelta
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.fsm.context import FSMContext  # Добавлен импорт
+from aiogram.fsm.context import FSMContext
+from aiogram.filters import Command  # Добавлен импорт фильтра Command
 
 # Загрузка переменных окружения
 load_dotenv()
@@ -147,7 +148,7 @@ async def create_stripe_link(user_id):
 async def generate_daily_recipe(user_data):
     return "Пример дневного рациона"
 
-@dp.message(commands=['start'])
+@dp.message(Command(commands=['start']))
 async def start(message: types.Message, state: FSMContext):
     user = await db.get_user(message.from_user.id)
     language = user["language"] if user else "ru"
