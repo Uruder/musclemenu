@@ -389,16 +389,17 @@ async def on_shutdown(dispatcher):
     await db.pool.close()
     logging.info("Webhook stopped and DB closed")
 
-app = web.Application()
-request_handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
-request_handler.register(app, path=WEBHOOK_PATH)
-setup_application(app, dp, bot=bot)
+async def main():
+    logging.info("Starting main function")
+    await on_startup(dp)
+    logging.info("Main setup complete, running web app")
+    await web.run_app(app, host=WEBAPP_HOST, port=WEBAPP_PORT)
 
 if __name__ == "__main__":
-    logging.info("Preparing to run web app...")
+    logging.info("Preparing to run bot...")
     app = web.Application()
     request_handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
     request_handler.register(app, path=WEBHOOK_PATH)
     setup_application(app, dp, bot=bot)
-    logging.info("Web app setup complete, starting server...")
-    web.run_app(app, host=WEBAPP_HOST, port=WEBAPP_PORT)
+    logging.info("Web app setup complete")
+    asyncio.run(main())
