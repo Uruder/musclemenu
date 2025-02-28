@@ -8,7 +8,8 @@ from aiohttp import web
 from dotenv import load_dotenv
 from database import Database
 from datetime import datetime, timedelta
-from aiogram.fsm.state import State, StatesGroup  # Добавлен импорт
+from aiogram.fsm.state import State, StatesGroup
+import asyncio
 
 # Загрузка переменных окружения
 load_dotenv()
@@ -146,23 +147,27 @@ async def create_stripe_link(user_id):
 async def generate_daily_recipe(user_data):
     return "Пример дневного рациона"
 
-@dp.message_handler(commands=['start'])
-async def start(message: types.Message):
+@dp.message(commands=['start'])
+async def start(message: types.Message, state: FSMContext):
     user = await db.get_user(message.from_user.id)
     language = user["language"] if user else "ru"
     await message.reply(TEXTS[language]["welcome"], parse_mode="Markdown")
     await UserForm.name.set()
 
-@dp.message_handler(state=UserForm.name)
+@dp.message()
 async def process_name(message: types.Message, state: FSMContext):
+    if await state.get_state() != UserForm.name.state:
+        return
     await state.update_data(name=message.text)
     user = await db.get_user(message.from_user.id)
     language = user["language"] if user else "ru"
     await message.reply(TEXTS[language]["height"])
     await UserForm.height.set()
 
-@dp.message_handler(state=UserForm.height)
+@dp.message()
 async def process_height(message: types.Message, state: FSMContext):
+    if await state.get_state() != UserForm.height.state:
+        return
     try:
         height = int(message.text)
         await state.update_data(height=height)
@@ -175,8 +180,10 @@ async def process_height(message: types.Message, state: FSMContext):
         language = user["language"] if user else "ru"
         await message.reply(f"Пожалуйста, укажи число. {TEXTS[language]['height']}")
 
-@dp.message_handler(state=UserForm.weight)
+@dp.message()
 async def process_weight(message: types.Message, state: FSMContext):
+    if await state.get_state() != UserForm.weight.state:
+        return
     try:
         weight = int(message.text)
         await state.update_data(weight=weight)
@@ -189,8 +196,10 @@ async def process_weight(message: types.Message, state: FSMContext):
         language = user["language"] if user else "ru"
         await message.reply(f"Пожалуйста, укажи число. {TEXTS[language]['weight']}")
 
-@dp.message_handler(state=UserForm.age)
+@dp.message()
 async def process_age(message: types.Message, state: FSMContext):
+    if await state.get_state() != UserForm.age.state:
+        return
     try:
         age = int(message.text)
         await state.update_data(age=age)
@@ -203,8 +212,10 @@ async def process_age(message: types.Message, state: FSMContext):
         language = user["language"] if user else "ru"
         await message.reply(f"Пожалуйста, укажи число. {TEXTS[language]['age']}")
 
-@dp.message_handler(state=UserForm.activity)
+@dp.message()
 async def process_activity(message: types.Message, state: FSMContext):
+    if await state.get_state() != UserForm.activity.state:
+        return
     activity = message.text.lower()
     if activity not in ["низкая", "средняя", "высокая", "low", "medium", "high", "низький", "середній", "високий"]:
         user = await db.get_user(message.from_user.id)
@@ -217,8 +228,10 @@ async def process_activity(message: types.Message, state: FSMContext):
     await message.reply(TEXTS[language]["workouts"])
     await UserForm.workouts.set()
 
-@dp.message_handler(state=UserForm.workouts)
+@dp.message()
 async def process_workouts(message: types.Message, state: FSMContext):
+    if await state.get_state() != UserForm.workouts.state:
+        return
     try:
         workouts = int(message.text)
         await state.update_data(workouts=workouts)
@@ -231,8 +244,10 @@ async def process_workouts(message: types.Message, state: FSMContext):
         language = user["language"] if user else "ru"
         await message.reply(f"Пожалуйста, укажи число. {TEXTS[language]['workouts']}")
 
-@dp.message_handler(state=UserForm.preferences)
+@dp.message()
 async def process_preferences(message: types.Message, state: FSMContext):
+    if await state.get_state() != UserForm.preferences.state:
+        return
     preferences = message.text.strip()
     data = await state.get_data()
     user = await db.get_user(message.from_user.id)
@@ -301,11 +316,11 @@ async def pay_stripe(callback: types.CallbackQuery):
         reply_markup=markup
     )
 
-@dp.pre_checkout_query_handler()
+@dp.pre_checkout_query()
 async def pre_checkout(pre_checkout_query: types.PreCheckoutQuery):
     await bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
 
-@dp.message_handler(content_types=types.ContentType.SUCCESSFUL_PAYMENT)
+@dp.message(content_types=types.ContentType.SUCCESSFUL_PAYMENT)
 async def successful_payment(message: types.Message):
     user = await db.get_user(message.from_user.id)
     language = user["language"]
