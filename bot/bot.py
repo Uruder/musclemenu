@@ -155,14 +155,12 @@ async def generate_daily_recipe(user_data):
 @dp.message(Command(commands=['start']))
 async def start(message: types.Message, state: FSMContext):
     logging.info(f"Received /start from user {message.from_user.id}")
-    if db.pool is None:
-        logging.error("Database pool is None, cannot proceed")
-        await message.reply("Ошибка: база данных недоступна. Попробуйте позже.")
-        return
-    user = await db.get_user(message.from_user.id)
-    language = user["language"] if user else "ru"
-    await message.reply(TEXTS[language]["welcome"], parse_mode="Markdown")
-    await state.set_state(UserForm.name)
+    try:
+        await message.reply("💪 *Привет! Я MuscleMenu!* Помогу тебе набрать массу.\nДавай зарегистрируем тебя. Как тебя зовут?", parse_mode="Markdown")
+        await state.set_state(UserForm.name)
+        logging.info(f"Sent welcome message and set state for user {message.from_user.id}")
+    except Exception as e:
+        logging.error(f"Error in start handler for user {message.from_user.id}: {e}")
 
 @dp.message()
 async def process_name(message: types.Message, state: FSMContext):
