@@ -67,7 +67,7 @@ TEXTS = {
         "payment_success": "🎉 Спасибо за покупку!",
         "subscription_end": "⏰ Твоя подписка заканчивается через {days} дней! Продли за 500 UAH или 50 XTR.",
         "subscription_expired": "⚠️ Твоя подписка закончилась. Доступ к дневному рациону ограничен.",
-        "register_first": "Сначала зарегистрируйся!",
+        "register_first": "Сначала зарегистрируйтесь!",
         "back_to_main": "💪 *MuscleMenu* — твой помощник в наборе массы!\nЧто дальше?"
     },
     "en": {
@@ -101,7 +101,7 @@ TEXTS = {
         "payment_success": "🎉 Дякую за покупку!",
         "subscription_end": "⏰ Твоя підписка закінчується через {days} днів! Продовж за 500 UAH або 50 XTR.",
         "subscription_expired": "⚠️ Твоя підписка закінчилася. Доступ до денного раціону обмежено.",
-        "register_first": "Спочатку зареєструйся!",
+        "register_first": "Спочатку зареєструйтесь!",
         "back_to_main": "💪 *MuscleMenu* — твій помічник у наборі маси!\nЩо далі?"
     }
 }
@@ -280,10 +280,18 @@ async def daily_plan(callback: types.CallbackQuery):
     language = user["language"]
     subscription = await db.get_subscription(callback.from_user.id)
     now = datetime.now()
+    logging.info(f"Subscription status for user {callback.from_user.id}: {subscription}")
 
-    if subscription and subscription["subscription_end"] and subscription["subscription_end"] > now:
+    if not subscription or (subscription["trial_used"] is False):
+        # Пробный доступ для новых пользователей
+        await db.set_trial_used(callback.from_user.id)
         ration = await generate_daily_recipe(user)
         await callback.message.reply(ration, reply_markup=get_back_menu(ration, language), parse_mode="Markdown")
+        logging.info(f"Provided trial daily plan for user {callback.from_user.id}")
+    elif subscription and subscription["subscription_end"] and subscription["subscription_end"] > now:
+        ration = await generate_daily_recipe(user)
+        await callback.message.reply(ration, reply_markup=get_back_menu(ration, language), parse_mode="Markdown")
+        logging.info(f"Provided subscribed daily plan for user {callback.from_user.id}")
     elif subscription and subscription["trial_used"]:
         markup = types.InlineKeyboardMarkup(inline_keyboard=[
             [types.InlineKeyboardButton(text="💫 Stars (50 XTR)", callback_data="pay_stars"),
@@ -294,10 +302,9 @@ async def daily_plan(callback: types.CallbackQuery):
             "Подписка на 30 дней доступа к дневному рациону:",
             reply_markup=markup
         )
+        logging.info(f"Offered subscription for user {callback.from_user.id}")
     else:
-        await db.set_trial_used(callback.from_user.id)
-        ration = await generate_daily_recipe(user)
-        await callback.message.reply(ration, reply_markup=get_back_menu(ration, language), parse_mode="Markdown")
+        await callback.message.reply("Произошла ошибка. Попробуйте позже.", reply_markup=get_main_menu(language))
 
 @dp.callback_query(lambda c: c.data == "pay_stars")
 async def pay_stars(callback: types.CallbackQuery):
