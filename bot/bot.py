@@ -10,7 +10,7 @@ from database import Database
 from datetime import datetime, timedelta
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
-from aiogram.filters import Command
+from aiogram.filters import Command, Text
 import asyncio
 
 # Загрузка переменных окружения
@@ -162,15 +162,20 @@ async def start(message: types.Message, state: FSMContext):
     except Exception as e:
         logging.error(f"Error in start handler for user {message.from_user.id}: {e}")
 
-@dp.message()
+@dp.message(Text)
 async def process_name(message: types.Message, state: FSMContext):
-    if await state.get_state() != UserForm.name:
+    current_state = await state.get_state()
+    logging.info(f"Received message '{message.text}' from user {message.from_user.id} with state {current_state}")
+    if current_state != UserForm.name:
+        logging.info(f"State mismatch for user {message.from_user.id}: expected {UserForm.name}, got {current_state}")
         return
-    await state.update_data(name=message.text)
-    user = await db.get_user(message.from_user.id)
-    language = user["language"] if user else "ru"
-    await message.reply(TEXTS[language]["height"])
-    await state.set_state(UserForm.height)
+    try:
+        await state.update_data(name=message.text)
+        await message.reply("Какой у тебя рост (в см)?")
+        await state.set_state(UserForm.height)
+        logging.info(f"Processed name and set height state for user {message.from_user.id}")
+    except Exception as e:
+        logging.error(f"Error in process_name for user {message.from_user.id}: {e}")
 
 @dp.message()
 async def process_height(message: types.Message, state: FSMContext):
