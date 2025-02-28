@@ -10,7 +10,7 @@ from database import Database
 from datetime import datetime, timedelta
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
-from aiogram.filters import Command, Text
+from aiogram.filters import Command
 import asyncio
 
 # Загрузка переменных окружения
@@ -162,13 +162,10 @@ async def start(message: types.Message, state: FSMContext):
     except Exception as e:
         logging.error(f"Error in start handler for user {message.from_user.id}: {e}")
 
-@dp.message(Text)
+@dp.message(state=UserForm.name)
 async def process_name(message: types.Message, state: FSMContext):
     current_state = await state.get_state()
     logging.info(f"Received message '{message.text}' from user {message.from_user.id} with state {current_state}")
-    if current_state != UserForm.name:
-        logging.info(f"State mismatch for user {message.from_user.id}: expected {UserForm.name}, got {current_state}")
-        return
     try:
         await state.update_data(name=message.text)
         await message.reply("Какой у тебя рост (в см)?")
@@ -177,10 +174,10 @@ async def process_name(message: types.Message, state: FSMContext):
     except Exception as e:
         logging.error(f"Error in process_name for user {message.from_user.id}: {e}")
 
-@dp.message()
+@dp.message(state=UserForm.height)
 async def process_height(message: types.Message, state: FSMContext):
-    if await state.get_state() != UserForm.height:
-        return
+    current_state = await state.get_state()
+    logging.info(f"Received message '{message.text}' from user {message.from_user.id} with state {current_state}")
     try:
         height = int(message.text)
         await state.update_data(height=height)
@@ -188,15 +185,18 @@ async def process_height(message: types.Message, state: FSMContext):
         language = user["language"] if user else "ru"
         await message.reply(TEXTS[language]["weight"])
         await state.set_state(UserForm.weight)
+        logging.info(f"Processed height and set weight state for user {message.from_user.id}")
     except ValueError:
         user = await db.get_user(message.from_user.id)
         language = user["language"] if user else "ru"
         await message.reply(f"Пожалуйста, укажи число. {TEXTS[language]['height']}")
+    except Exception as e:
+        logging.error(f"Error in process_height for user {message.from_user.id}: {e}")
 
-@dp.message()
+@dp.message(state=UserForm.weight)
 async def process_weight(message: types.Message, state: FSMContext):
-    if await state.get_state() != UserForm.weight:
-        return
+    current_state = await state.get_state()
+    logging.info(f"Received message '{message.text}' from user {message.from_user.id} with state {current_state}")
     try:
         weight = int(message.text)
         await state.update_data(weight=weight)
@@ -204,15 +204,18 @@ async def process_weight(message: types.Message, state: FSMContext):
         language = user["language"] if user else "ru"
         await message.reply(TEXTS[language]["age"])
         await state.set_state(UserForm.age)
+        logging.info(f"Processed weight and set age state for user {message.from_user.id}")
     except ValueError:
         user = await db.get_user(message.from_user.id)
         language = user["language"] if user else "ru"
         await message.reply(f"Пожалуйста, укажи число. {TEXTS[language]['weight']}")
+    except Exception as e:
+        logging.error(f"Error in process_weight for user {message.from_user.id}: {e}")
 
-@dp.message()
+@dp.message(state=UserForm.age)
 async def process_age(message: types.Message, state: FSMContext):
-    if await state.get_state() != UserForm.age:
-        return
+    current_state = await state.get_state()
+    logging.info(f"Received message '{message.text}' from user {message.from_user.id} with state {current_state}")
     try:
         age = int(message.text)
         await state.update_data(age=age)
@@ -220,31 +223,38 @@ async def process_age(message: types.Message, state: FSMContext):
         language = user["language"] if user else "ru"
         await message.reply(TEXTS[language]["activity"])
         await state.set_state(UserForm.activity)
+        logging.info(f"Processed age and set activity state for user {message.from_user.id}")
     except ValueError:
         user = await db.get_user(message.from_user.id)
         language = user["language"] if user else "ru"
         await message.reply(f"Пожалуйста, укажи число. {TEXTS[language]['age']}")
+    except Exception as e:
+        logging.error(f"Error in process_age for user {message.from_user.id}: {e}")
 
-@dp.message()
+@dp.message(state=UserForm.activity)
 async def process_activity(message: types.Message, state: FSMContext):
-    if await state.get_state() != UserForm.activity:
-        return
+    current_state = await state.get_state()
+    logging.info(f"Received message '{message.text}' from user {message.from_user.id} with state {current_state}")
     activity = message.text.lower()
     if activity not in ["низкая", "средняя", "высокая", "low", "medium", "high", "низький", "середній", "високий"]:
         user = await db.get_user(message.from_user.id)
         language = user["language"] if user else "ru"
         await message.reply(f"Укажи: низкая/средняя/высокая (или low/medium/high, низький/середній/високий). {TEXTS[language]['activity']}")
         return
-    await state.update_data(activity=activity)
-    user = await db.get_user(message.from_user.id)
-    language = user["language"] if user else "ru"
-    await message.reply(TEXTS[language]["workouts"])
-    await state.set_state(UserForm.workouts)
+    try:
+        await state.update_data(activity=activity)
+        user = await db.get_user(message.from_user.id)
+        language = user["language"] if user else "ru"
+        await message.reply(TEXTS[language]["workouts"])
+        await state.set_state(UserForm.workouts)
+        logging.info(f"Processed activity and set workouts state for user {message.from_user.id}")
+    except Exception as e:
+        logging.error(f"Error in process_activity for user {message.from_user.id}: {e}")
 
-@dp.message()
+@dp.message(state=UserForm.workouts)
 async def process_workouts(message: types.Message, state: FSMContext):
-    if await state.get_state() != UserForm.workouts:
-        return
+    current_state = await state.get_state()
+    logging.info(f"Received message '{message.text}' from user {message.from_user.id} with state {current_state}")
     try:
         workouts = int(message.text)
         await state.update_data(workouts=workouts)
@@ -252,25 +262,32 @@ async def process_workouts(message: types.Message, state: FSMContext):
         language = user["language"] if user else "ru"
         await message.reply(TEXTS[language]["preferences"])
         await state.set_state(UserForm.preferences)
+        logging.info(f"Processed workouts and set preferences state for user {message.from_user.id}")
     except ValueError:
         user = await db.get_user(message.from_user.id)
         language = user["language"] if user else "ru"
         await message.reply(f"Пожалуйста, укажи число. {TEXTS[language]['workouts']}")
+    except Exception as e:
+        logging.error(f"Error in process_workouts for user {message.from_user.id}: {e}")
 
-@dp.message()
+@dp.message(state=UserForm.preferences)
 async def process_preferences(message: types.Message, state: FSMContext):
-    if await state.get_state() != UserForm.preferences:
-        return
+    current_state = await state.get_state()
+    logging.info(f"Received message '{message.text}' from user {message.from_user.id} with state {current_state}")
     preferences = message.text.strip()
     data = await state.get_data()
     user = await db.get_user(message.from_user.id)
     language = user["language"] if user else "ru"
-    await db.add_user(
-        message.from_user.id, data["name"], data["height"], data["weight"],
-        data["age"], data["activity"], data["workouts"], preferences, language
-    )
-    await message.reply(TEXTS[language]["saved"], reply_markup=get_main_menu(language), parse_mode="Markdown")
-    await state.finish()
+    try:
+        await db.add_user(
+            message.from_user.id, data["name"], data["height"], data["weight"],
+            data["age"], data["activity"], data["workouts"], preferences, language
+        )
+        await message.reply(TEXTS[language]["saved"], reply_markup=get_main_menu(language), parse_mode="Markdown")
+        await state.finish()
+        logging.info(f"Processed preferences and finished state for user {message.from_user.id}")
+    except Exception as e:
+        logging.error(f"Error in process_preferences for user {message.from_user.id}: {e}")
 
 @dp.callback_query(lambda c: c.data == "daily_plan")
 async def daily_plan(callback: types.CallbackQuery):
