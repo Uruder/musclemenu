@@ -264,7 +264,7 @@ async def process_preferences(message: types.Message, state: FSMContext):
             data["age"], data["activity"], data["workouts"], preferences, "ru"
         )
         await message.reply("✅ *Данные сохранены!* Что дальше?", reply_markup=get_main_menu("ru"), parse_mode="Markdown")
-        await state.clear()  # Используем clear() вместо finish()
+        await state.clear()
         logging.info(f"Processed preferences and cleared state for user {message.from_user.id}")
     except Exception as e:
         logging.error(f"Error in process_preferences for user {message.from_user.id}: {e}")
@@ -273,119 +273,139 @@ async def process_preferences(message: types.Message, state: FSMContext):
 @dp.callback_query(lambda c: c.data == "daily_plan")
 async def daily_plan(callback: types.CallbackQuery):
     logging.info(f"Received callback 'daily_plan' from user {callback.from_user.id}")
-    user = await db.get_user(callback.from_user.id)
-    if not user:
-        await callback.message.reply("Сначала зарегистрируйтесь!", reply_markup=get_main_menu("ru"))
-        return
-    language = user["language"]
-    subscription = await db.get_subscription(callback.from_user.id)
-    now = datetime.now()
-    logging.info(f"Subscription status for user {callback.from_user.id}: {subscription}")
+    try:
+        user = await db.get_user(callback.from_user.id)
+        if not user:
+            await callback.message.reply("Сначала зарегистрируйтесь!", reply_markup=get_main_menu("ru"))
+            return
+        language = user["language"]
+        subscription = await db.get_subscription(callback.from_user.id)
+        now = datetime.now()
+        logging.info(f"Subscription status for user {callback.from_user.id}: {subscription}")
 
-    # Проверяем, есть ли пользователь в базе и предоставляем пробный доступ, если триал не использован
-    if not subscription:
-        await db.set_trial_used(callback.from_user.id)  # Устанавливаем trial_used=True для нового пользователя
-        ration = await generate_daily_recipe(user)
-        await callback.message.reply(ration, reply_markup=get_back_menu(ration, language), parse_mode="Markdown")
-        logging.info(f"Provided trial daily plan for user {callback.from_user.id}")
-    elif subscription and not subscription.get("trial_used", False):
-        await db.set_trial_used(callback.from_user.id)  # Устанавливаем trial_used=True
-        ration = await generate_daily_recipe(user)
-        await callback.message.reply(ration, reply_markup=get_back_menu(ration, language), parse_mode="Markdown")
-        logging.info(f"Provided trial daily plan for user {callback.from_user.id}")
-    elif subscription and subscription["subscription_end"] and subscription["subscription_end"] > now:
-        ration = await generate_daily_recipe(user)
-        await callback.message.reply(ration, reply_markup=get_back_menu(ration, language), parse_mode="Markdown")
-        logging.info(f"Provided subscribed daily plan for user {callback.from_user.id}")
-    elif subscription and subscription["trial_used"]:
-        markup = types.InlineKeyboardMarkup(inline_keyboard=[
-            [types.InlineKeyboardButton(text="💫 Stars (50 XTR)", callback_data="pay_stars"),
-             types.InlineKeyboardButton(text="💳 Карта (500 UAH)", callback_data="pay_stripe")],
-            [types.InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_main")]
-        ])
-        await callback.message.reply(
-            "Подписка на 30 дней доступа к дневному рациону:",
-            reply_markup=markup
-        )
-        logging.info(f"Offered subscription for user {callback.from_user.id}")
-    else:
-        await callback.message.reply("Произошла ошибка. Попробуйте позже.", reply_markup=get_main_menu(language))
+        # Проверяем, есть ли подписка или триал
+        if not subscription or (subscription and not subscription["trial_used"]):
+            await db.set_trial_used(callback.from_user.id)  # Устанавливаем, что триал использован
+            ration = await generate_daily_recipe(user)
+            await callback.message.reply(ration, reply_markup=get_back_menu(ration, language), parse_mode="Markdown")
+            logging.info(f"Provided trial daily plan for user {callback.from_user.id}")
+        elif subscription and subscription["subscription_end"] and subscription["subscription_end"] > now:
+            ration = await generate_daily_recipe(user)
+            await callback.message.reply(ration, reply_markup=get_back_menu(ration, language), parse_mode="Markdown")
+            logging.info(f"Provided subscribed daily plan for user {callback.from_user.id}")
+        else:
+            markup = types.InlineKeyboardMarkup(inline_keyboard=[
+                [types.InlineKeyboardButton(text="💫 Stars (50 XTR)", callback_data="pay_stars"),
+                 types.InlineKeyboardButton(text="💳 Карта (500 UAH)", callback_data="pay_stripe")],
+                [types.InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_main")]
+            ])
+            await callback.message.reply(
+                "Подписка на 30 дней доступа к дневному рациону:",
+                reply_markup=markup
+            )
+            logging.info(f"Offered subscription for user {callback.from_user.id}")
+    except Exception as e:
+        logging.error(f"Error in daily_plan for user {callback.from_user.id}: {e}")
+        await callback.message.reply("Произошла ошибка. Попробуйте позже.", reply_markup=get_main_menu("ru"))
 
 @dp.callback_query(lambda c: c.data == "back_to_main")
 async def back_to_main(callback: types.CallbackQuery):
     logging.info(f"Received callback 'back_to_main' from user {callback.from_user.id}")
-    user = await db.get_user(callback.from_user.id)
-    if not user:
-        await callback.message.reply("Сначала зарегистрируйтесь!", reply_markup=get_main_menu("ru"))
-        return
-    language = user["language"]
-    await callback.message.reply(TEXTS[language]["back_to_main"], reply_markup=get_main_menu(language), parse_mode="Markdown")
-    logging.info(f"Returned to main menu for user {callback.from_user.id}")
+    try:
+        user = await db.get_user(callback.from_user.id)
+        if not user:
+            await callback.message.reply("Сначала зарегистрируйтесь!", reply_markup=get_main_menu("ru"))
+            return
+        language = user["language"]
+        await callback.message.reply(TEXTS[language]["back_to_main"], reply_markup=get_main_menu(language), parse_mode="Markdown")
+        logging.info(f"Returned to main menu for user {callback.from_user.id}")
+    except Exception as e:
+        logging.error(f"Error in back_to_main for user {callback.from_user.id}: {e}")
+        await callback.message.reply("Произошла ошибка. Попробуйте позже.", reply_markup=get_main_menu("ru"))
 
 @dp.callback_query(lambda c: c.data == "switch_language")
 async def switch_language(callback: types.CallbackQuery):
     logging.info(f"Received callback 'switch_language' from user {callback.from_user.id}")
-    user = await db.get_user(callback.from_user.id)
-    if not user:
-        await callback.message.reply("Сначала зарегистрируйтесь!", reply_markup=get_main_menu("ru"))
-        return
+    try:
+        user = await db.get_user(callback.from_user.id)
+        if not user:
+            await callback.message.reply("Сначала зарегистрируйтесь!", reply_markup=get_main_menu("ru"))
+            return
 
-    current_language = user["language"]
-    languages = ["ru", "en", "uk"]
-    current_index = languages.index(current_language)
-    new_language = languages[(current_index + 1) % 3]  # Переключаем на следующий язык
+        current_language = user["language"]
+        languages = ["ru", "en", "uk"]
+        current_index = languages.index(current_language)
+        new_language = languages[(current_index + 1) % 3]  # Переключаем на следующий язык
 
-    # Обновляем язык в базе данных
-    await db.update_user_language(callback.from_user.id, new_language)
-    await callback.message.reply(TEXTS[new_language]["back_to_main"], reply_markup=get_main_menu(new_language), parse_mode="Markdown")
-    logging.info(f"Switched language to {new_language} for user {callback.from_user.id}")
+        # Обновляем язык в базе данных
+        await db.update_user_language(callback.from_user.id, new_language)
+        await callback.message.reply(TEXTS[new_language]["back_to_main"], reply_markup=get_main_menu(new_language), parse_mode="Markdown")
+        logging.info(f"Switched language to {new_language} for user {callback.from_user.id}")
+    except Exception as e:
+        logging.error(f"Error in switch_language for user {callback.from_user.id}: {e}")
+        await callback.message.reply("Произошла ошибка. Попробуйте позже.", reply_markup=get_main_menu("ru"))
 
 @dp.callback_query(lambda c: c.data == "pay_stars")
 async def pay_stars(callback: types.CallbackQuery):
     logging.info(f"Received callback 'pay_stars' from user {callback.from_user.id}")
-    user = await db.get_user(callback.from_user.id)
-    language = user["language"]
-    await bot.send_invoice(
-        callback.from_user.id,
-        title="Подписка на 30 дней",
-        description="Доступ к дневному рациону на 30 дней",
-        provider_token="",
-        currency="XTR",
-        prices=[types.LabeledPrice(label="Подписка", amount=50)],
-        payload="subscription_stars"
-    )
+    try:
+        user = await db.get_user(callback.from_user.id)
+        language = user["language"]
+        await bot.send_invoice(
+            callback.from_user.id,
+            title="Подписка на 30 дней",
+            description="Доступ к дневному рациону на 30 дней",
+            provider_token="",
+            currency="XTR",
+            prices=[types.LabeledPrice(label="Подписка", amount=50)],
+            payload="subscription_stars"
+        )
+    except Exception as e:
+        logging.error(f"Error in pay_stars for user {callback.from_user.id}: {e}")
+        await callback.message.reply("Произошла ошибка при обработке оплаты. Попробуйте позже.", reply_markup=get_main_menu(language))
 
 @dp.callback_query(lambda c: c.data == "pay_stripe")
 async def pay_stripe(callback: types.CallbackQuery):
     logging.info(f"Received callback 'pay_stripe' from user {callback.from_user.id}")
-    user = await db.get_user(callback.from_user.id)
-    language = user["language"]
-    payment_url = await create_stripe_link(callback.from_user.id)
-    markup = types.InlineKeyboardMarkup(inline_keyboard=[
-        [types.InlineKeyboardButton(text="Оплатить", url=payment_url)]
-    ])
-    await callback.message.reply(
-        "Перейди по ссылке для оплаты (500 UAH):",
-        reply_markup=markup
-    )
+    try:
+        user = await db.get_user(callback.from_user.id)
+        language = user["language"]
+        payment_url = await create_stripe_link(callback.from_user.id)
+        markup = types.InlineKeyboardMarkup(inline_keyboard=[
+            [types.InlineKeyboardButton(text="Оплатить", url=payment_url)]
+        ])
+        await callback.message.reply(
+            "Перейди по ссылке для оплаты (500 UAH):",
+            reply_markup=markup
+        )
+    except Exception as e:
+        logging.error(f"Error in pay_stripe for user {callback.from_user.id}: {e}")
+        await callback.message.reply("Произошла ошибка при обработке оплаты. Попробуйте позже.", reply_markup=get_main_menu(language))
 
 @dp.pre_checkout_query()
 async def pre_checkout(pre_checkout_query: types.PreCheckoutQuery):
     logging.info(f"Received pre_checkout_query from user {pre_checkout_query.from_user.id}")
-    await bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
+    try:
+        await bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
+    except Exception as e:
+        logging.error(f"Error in pre_checkout for user {pre_checkout_query.from_user.id}: {e}")
 
 @dp.message()
 async def successful_payment(message: types.Message):
     logging.info(f"Received message with content_type: {message.content_type} from user {message.from_user.id}")
-    if message.content_type != types.ContentType.SUCCESSFUL_PAYMENT:
-        return
-    user = await db.get_user(message.from_user.id)
-    language = user["language"]
-    subscription_end = datetime.now() + timedelta(days=30)
-    await db.set_subscription(message.from_user.id, subscription_end)
-    ration = await generate_daily_recipe(user)
-    await message.reply(ration + f"\n\n{TEXTS[language]['payment_success']}", reply_markup=get_back_menu(ration, language), parse_mode="Markdown")
-    logging.info(f"Payment processed for user {message.from_user.id}")
+    try:
+        if message.content_type != types.ContentType.SUCCESSFUL_PAYMENT:
+            return
+        user = await db.get_user(message.from_user.id)
+        language = user["language"]
+        subscription_end = datetime.now() + timedelta(days=30)
+        await db.set_subscription(message.from_user.id, subscription_end)
+        ration = await generate_daily_recipe(user)
+        await message.reply(ration + f"\n\n{TEXTS[language]['payment_success']}", reply_markup=get_back_menu(ration, language), parse_mode="Markdown")
+        logging.info(f"Payment processed for user {message.from_user.id}")
+    except Exception as e:
+        logging.error(f"Error in successful_payment for user {message.from_user.id}: {e}")
+        await message.reply("Произошла ошибка при обработке оплаты. Попробуйте позже.", parse_mode="Markdown")
 
 async def send_reminders():
     logging.info("Starting reminders task")
@@ -412,9 +432,9 @@ async def on_startup(_):
     logging.info("Entering on_startup function")
     try:
         await db.connect()
-        logging.info("Database connected")
+        logging.info("Database connected successfully")
         await db.create_tables()
-        logging.info("Tables created")
+        logging.info("Tables created successfully")
         await bot.set_webhook(WEBHOOK_URL)
         logging.info(f"Webhook set to {WEBHOOK_URL}")
         asyncio.create_task(send_reminders())
@@ -426,7 +446,8 @@ async def on_startup(_):
 async def on_shutdown(_):
     logging.info("Shutting down bot...")
     await bot.delete_webhook()
-    await db.pool.close()
+    if db.pool:
+        await db.pool.close()
     logging.info("Webhook stopped and DB closed")
 
 # Создание приложения и запуск
