@@ -1,18 +1,26 @@
 import asyncpg
 import os
 from dotenv import load_dotenv
-from datetime import datetime
+import logging
 
 load_dotenv()
 
 class Database:
     def __init__(self):
         self.pool = None
+        logging.info("Database instance created")
 
     async def connect(self):
-        self.pool = await asyncpg.create_pool(os.getenv("DATABASE_URL"))
+        logging.info("Attempting to connect to database...")
+        try:
+            self.pool = await asyncpg.create_pool(os.getenv("DATABASE_URL"))
+            logging.info("Database connection established successfully")
+        except Exception as e:
+            logging.error(f"Failed to connect to database: {e}")
+            raise
 
     async def create_tables(self):
+        logging.info("Creating tables...")
         async with self.pool.acquire() as conn:
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS users (
@@ -34,6 +42,7 @@ class Database:
                     subscription_end TIMESTAMP
                 );
             """)
+            logging.info("Tables created successfully")
 
     async def add_user(self, user_id, name, height, weight, age, activity, workouts, preferences="", language="ru"):
         async with self.pool.acquire() as conn:
@@ -42,6 +51,7 @@ class Database:
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                 ON CONFLICT (user_id) DO NOTHING
             """, user_id, name, height, weight, age, activity, workouts, preferences, language)
+            logging.info(f"User {user_id} added or skipped")
 
     async def set_trial_used(self, user_id):
         async with self.pool.acquire() as conn:
