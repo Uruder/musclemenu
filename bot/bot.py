@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.filters import Command
+import asyncio
 
 # Загрузка переменных окружения
 load_dotenv()
@@ -24,13 +25,16 @@ GROK_API_KEY = os.getenv("GROK_API_KEY")
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
+logging.info(f"Bot starting with token: {BOT_TOKEN[:10]}...")
 
 # Инициализация бота и диспетчера
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
+logging.info("Bot and Dispatcher initialized")
 
 # База данных
 db = Database()
+logging.info("Database object created")
 
 # База рецептов
 RECIPES = [
@@ -150,6 +154,7 @@ async def generate_daily_recipe(user_data):
 
 @dp.message(Command(commands=['start']))
 async def start(message: types.Message, state: FSMContext):
+    logging.info(f"Received /start from user {message.from_user.id}")
     user = await db.get_user(message.from_user.id)
     language = user["language"] if user else "ru"
     await message.reply(TEXTS[language]["welcome"], parse_mode="Markdown")
@@ -262,6 +267,7 @@ async def process_preferences(message: types.Message, state: FSMContext):
 
 @dp.callback_query(lambda c: c.data == "daily_plan")
 async def daily_plan(callback: types.CallbackQuery):
+    logging.info(f"Received callback 'daily_plan' from user {callback.from_user.id}")
     user = await db.get_user(callback.from_user.id)
     if not user:
         language = "ru"
@@ -292,6 +298,7 @@ async def daily_plan(callback: types.CallbackQuery):
 
 @dp.callback_query(lambda c: c.data == "pay_stars")
 async def pay_stars(callback: types.CallbackQuery):
+    logging.info(f"Received callback 'pay_stars' from user {callback.from_user.id}")
     user = await db.get_user(callback.from_user.id)
     language = user["language"]
     await bot.send_invoice(
@@ -306,6 +313,7 @@ async def pay_stars(callback: types.CallbackQuery):
 
 @dp.callback_query(lambda c: c.data == "pay_stripe")
 async def pay_stripe(callback: types.CallbackQuery):
+    logging.info(f"Received callback 'pay_stripe' from user {callback.from_user.id}")
     user = await db.get_user(callback.from_user.id)
     language = user["language"]
     payment_url = await create_stripe_link(callback.from_user.id)
@@ -319,10 +327,12 @@ async def pay_stripe(callback: types.CallbackQuery):
 
 @dp.pre_checkout_query()
 async def pre_checkout(pre_checkout_query: types.PreCheckoutQuery):
+    logging.info(f"Received pre_checkout_query from user {pre_checkout_query.from_user.id}")
     await bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
 
 @dp.message()
 async def successful_payment(message: types.Message):
+    logging.info(f"Received message with content_type: {message.content_type} from user {message.from_user.id}")
     if message.content_type != types.ContentType.SUCCESSFUL_PAYMENT:
         return
     user = await db.get_user(message.from_user.id)
@@ -331,8 +341,10 @@ async def successful_payment(message: types.Message):
     await db.set_subscription(message.from_user.id, subscription_end)
     ration = await generate_daily_recipe(user)
     await message.reply(ration + f"\n\n{TEXTS[language]['payment_success']}", reply_markup=get_back_menu(ration, language), parse_mode="Markdown")
+    logging.info(f"Payment processed for user {message.from_user.id}")
 
 async def send_reminders():
+    logging.info("Starting reminders task")
     while True:
         await asyncio.sleep(24 * 60 * 60)
         async with db.pool.acquire() as conn:
@@ -353,16 +365,25 @@ async def send_reminders():
                 await bot.send_message(user["user_id"], msg, reply_markup=get_main_menu(language))
 
 async def on_startup(dispatcher):
-    await db.connect()
-    await db.create_tables()
-    await bot.set_webhook(WEBHOOK_URL)
-    asyncio.create_task(send_reminders())
-    logging.info(f"Webhook установлен на {WEBHOOK_URL}")
+    logging.info("Starting bot setup...")
+    try:
+        await db.connect()
+        logging.info("Database connected")
+        await db.create_tables()
+        logging.info("Tables created")
+        await bot.set_webhook(WEBHOOK_URL)
+        logging.info(f"Webhook set to {WEBHOOK_URL}")
+        asyncio.create_task(send_reminders())
+        logging.info("Reminders task created")
+    except Exception as e:
+        logging.error(f"Startup failed: {e}")
+        raise
 
 async def on_shutdown(dispatcher):
+    logging.info("Shutting down bot...")
     await bot.delete_webhook()
     await db.pool.close()
-    logging.info("Webhook остановлен")
+    logging.info("Webhook stopped and DB closed")
 
 app = web.Application()
 request_handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
@@ -370,4 +391,5 @@ request_handler.register(app, path=WEBHOOK_PATH)
 setup_application(app, dp, bot=bot)
 
 if __name__ == "__main__":
+    logging.info("Running web app...")
     web.run_app(app, host=WEBAPP_HOST, port=WEBAPP_PORT)
