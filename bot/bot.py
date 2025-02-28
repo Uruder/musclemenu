@@ -10,7 +10,7 @@ from database import Database
 from datetime import datetime, timedelta
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
-from aiogram.filters import Command, F  # Добавлен импорт F
+from aiogram.filters import Command
 
 # Загрузка переменных окружения
 load_dotenv()
@@ -321,8 +321,10 @@ async def pay_stripe(callback: types.CallbackQuery):
 async def pre_checkout(pre_checkout_query: types.PreCheckoutQuery):
     await bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
 
-@dp.message(F.content_type == types.ContentType.SUCCESSFUL_PAYMENT)
+@dp.message()
 async def successful_payment(message: types.Message):
+    if message.content_type != types.ContentType.SUCCESSFUL_PAYMENT:
+        return
     user = await db.get_user(message.from_user.id)
     language = user["language"]
     subscription_end = datetime.now() + timedelta(days=30)
