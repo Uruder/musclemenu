@@ -162,21 +162,21 @@ async def start(message: types.Message, state: FSMContext):
     user = await db.get_user(message.from_user.id)
     language = user["language"] if user else "ru"
     await message.reply(TEXTS[language]["welcome"], parse_mode="Markdown")
-    await UserForm.name.set()
+    await state.set_state(UserForm.name)
 
 @dp.message()
 async def process_name(message: types.Message, state: FSMContext):
-    if await state.get_state() != UserForm.name.state:
+    if await state.get_state() != UserForm.name:
         return
     await state.update_data(name=message.text)
     user = await db.get_user(message.from_user.id)
     language = user["language"] if user else "ru"
     await message.reply(TEXTS[language]["height"])
-    await UserForm.height.set()
+    await state.set_state(UserForm.height)
 
 @dp.message()
 async def process_height(message: types.Message, state: FSMContext):
-    if await state.get_state() != UserForm.height.state:
+    if await state.get_state() != UserForm.height:
         return
     try:
         height = int(message.text)
@@ -184,7 +184,7 @@ async def process_height(message: types.Message, state: FSMContext):
         user = await db.get_user(message.from_user.id)
         language = user["language"] if user else "ru"
         await message.reply(TEXTS[language]["weight"])
-        await UserForm.weight.set()
+        await state.set_state(UserForm.weight)
     except ValueError:
         user = await db.get_user(message.from_user.id)
         language = user["language"] if user else "ru"
@@ -192,7 +192,7 @@ async def process_height(message: types.Message, state: FSMContext):
 
 @dp.message()
 async def process_weight(message: types.Message, state: FSMContext):
-    if await state.get_state() != UserForm.weight.state:
+    if await state.get_state() != UserForm.weight:
         return
     try:
         weight = int(message.text)
@@ -200,7 +200,7 @@ async def process_weight(message: types.Message, state: FSMContext):
         user = await db.get_user(message.from_user.id)
         language = user["language"] if user else "ru"
         await message.reply(TEXTS[language]["age"])
-        await UserForm.age.set()
+        await state.set_state(UserForm.age)
     except ValueError:
         user = await db.get_user(message.from_user.id)
         language = user["language"] if user else "ru"
@@ -208,7 +208,7 @@ async def process_weight(message: types.Message, state: FSMContext):
 
 @dp.message()
 async def process_age(message: types.Message, state: FSMContext):
-    if await state.get_state() != UserForm.age.state:
+    if await state.get_state() != UserForm.age:
         return
     try:
         age = int(message.text)
@@ -216,7 +216,7 @@ async def process_age(message: types.Message, state: FSMContext):
         user = await db.get_user(message.from_user.id)
         language = user["language"] if user else "ru"
         await message.reply(TEXTS[language]["activity"])
-        await UserForm.activity.set()
+        await state.set_state(UserForm.activity)
     except ValueError:
         user = await db.get_user(message.from_user.id)
         language = user["language"] if user else "ru"
@@ -224,7 +224,7 @@ async def process_age(message: types.Message, state: FSMContext):
 
 @dp.message()
 async def process_activity(message: types.Message, state: FSMContext):
-    if await state.get_state() != UserForm.activity.state:
+    if await state.get_state() != UserForm.activity:
         return
     activity = message.text.lower()
     if activity not in ["низкая", "средняя", "высокая", "low", "medium", "high", "низький", "середній", "високий"]:
@@ -236,11 +236,11 @@ async def process_activity(message: types.Message, state: FSMContext):
     user = await db.get_user(message.from_user.id)
     language = user["language"] if user else "ru"
     await message.reply(TEXTS[language]["workouts"])
-    await UserForm.workouts.set()
+    await state.set_state(UserForm.workouts)
 
 @dp.message()
 async def process_workouts(message: types.Message, state: FSMContext):
-    if await state.get_state() != UserForm.workouts.state:
+    if await state.get_state() != UserForm.workouts:
         return
     try:
         workouts = int(message.text)
@@ -248,7 +248,7 @@ async def process_workouts(message: types.Message, state: FSMContext):
         user = await db.get_user(message.from_user.id)
         language = user["language"] if user else "ru"
         await message.reply(TEXTS[language]["preferences"])
-        await UserForm.preferences.set()
+        await state.set_state(UserForm.preferences)
     except ValueError:
         user = await db.get_user(message.from_user.id)
         language = user["language"] if user else "ru"
@@ -256,7 +256,7 @@ async def process_workouts(message: types.Message, state: FSMContext):
 
 @dp.message()
 async def process_preferences(message: types.Message, state: FSMContext):
-    if await state.get_state() != UserForm.preferences.state:
+    if await state.get_state() != UserForm.preferences:
         return
     preferences = message.text.strip()
     data = await state.get_data()
