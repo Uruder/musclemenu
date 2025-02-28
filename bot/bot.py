@@ -275,7 +275,7 @@ async def daily_plan(callback: types.CallbackQuery):
     logging.info(f"Received callback 'daily_plan' from user {callback.from_user.id}")
     user = await db.get_user(callback.from_user.id)
     if not user:
-        await callback.message.reply("Сначала зарегистрируйся!", reply_markup=get_main_menu("ru"))
+        await callback.message.reply("Сначала зарегистрируйтесь!", reply_markup=get_main_menu("ru"))
         return
     language = user["language"]
     subscription = await db.get_subscription(callback.from_user.id)
