@@ -181,15 +181,11 @@ async def process_height(message: types.Message, state: FSMContext):
     try:
         height = int(message.text)
         await state.update_data(height=height)
-        user = await db.get_user(message.from_user.id)
-        language = user["language"] if user else "ru"
-        await message.reply(TEXTS[language]["weight"])
+        await message.reply("Какой у тебя вес (в кг)?")
         await state.set_state(UserForm.weight)
         logging.info(f"Processed height and set weight state for user {message.from_user.id}")
     except ValueError:
-        user = await db.get_user(message.from_user.id)
-        language = user["language"] if user else "ru"
-        await message.reply(f"Пожалуйста, укажи число. {TEXTS[language]['height']}")
+        await message.reply("Пожалуйста, укажи число. Какой у тебя рост (в см)?")
     except Exception as e:
         logging.error(f"Error in process_height for user {message.from_user.id}: {e}")
 
@@ -200,15 +196,11 @@ async def process_weight(message: types.Message, state: FSMContext):
     try:
         weight = int(message.text)
         await state.update_data(weight=weight)
-        user = await db.get_user(message.from_user.id)
-        language = user["language"] if user else "ru"
-        await message.reply(TEXTS[language]["age"])
+        await message.reply("Сколько тебе лет?")
         await state.set_state(UserForm.age)
         logging.info(f"Processed weight and set age state for user {message.from_user.id}")
     except ValueError:
-        user = await db.get_user(message.from_user.id)
-        language = user["language"] if user else "ru"
-        await message.reply(f"Пожалуйста, укажи число. {TEXTS[language]['weight']}")
+        await message.reply("Пожалуйста, укажи число. Какой у тебя вес (в кг)?")
     except Exception as e:
         logging.error(f"Error in process_weight for user {message.from_user.id}: {e}")
 
@@ -219,15 +211,11 @@ async def process_age(message: types.Message, state: FSMContext):
     try:
         age = int(message.text)
         await state.update_data(age=age)
-        user = await db.get_user(message.from_user.id)
-        language = user["language"] if user else "ru"
-        await message.reply(TEXTS[language]["activity"])
+        await message.reply("Какой у тебя уровень активности (низкая/средняя/высокая)?")
         await state.set_state(UserForm.activity)
         logging.info(f"Processed age and set activity state for user {message.from_user.id}")
     except ValueError:
-        user = await db.get_user(message.from_user.id)
-        language = user["language"] if user else "ru"
-        await message.reply(f"Пожалуйста, укажи число. {TEXTS[language]['age']}")
+        await message.reply("Пожалуйста, укажи число. Сколько тебе лет?")
     except Exception as e:
         logging.error(f"Error in process_age for user {message.from_user.id}: {e}")
 
@@ -237,15 +225,11 @@ async def process_activity(message: types.Message, state: FSMContext):
     logging.info(f"Received message '{message.text}' from user {message.from_user.id} with state {current_state}")
     activity = message.text.lower()
     if activity not in ["низкая", "средняя", "высокая", "low", "medium", "high", "низький", "середній", "високий"]:
-        user = await db.get_user(message.from_user.id)
-        language = user["language"] if user else "ru"
-        await message.reply(f"Укажи: низкая/средняя/высокая (или low/medium/high, низький/середній/високий). {TEXTS[language]['activity']}")
+        await message.reply("Укажи: низкая/средняя/высокая (или low/medium/high, низький/середній/високий). Какой у тебя уровень активности?")
         return
     try:
         await state.update_data(activity=activity)
-        user = await db.get_user(message.from_user.id)
-        language = user["language"] if user else "ru"
-        await message.reply(TEXTS[language]["workouts"])
+        await message.reply("Сколько у тебя тренировок в неделю?")
         await state.set_state(UserForm.workouts)
         logging.info(f"Processed activity and set workouts state for user {message.from_user.id}")
     except Exception as e:
@@ -258,15 +242,11 @@ async def process_workouts(message: types.Message, state: FSMContext):
     try:
         workouts = int(message.text)
         await state.update_data(workouts=workouts)
-        user = await db.get_user(message.from_user.id)
-        language = user["language"] if user else "ru"
-        await message.reply(TEXTS[language]["preferences"])
+        await message.reply("Какие продукты ты любишь? (Например: 🍗 курица, 🥚 яйца, 🍚 рис)\nОставь пустым, если нет предпочтений.")
         await state.set_state(UserForm.preferences)
         logging.info(f"Processed workouts and set preferences state for user {message.from_user.id}")
     except ValueError:
-        user = await db.get_user(message.from_user.id)
-        language = user["language"] if user else "ru"
-        await message.reply(f"Пожалуйста, укажи число. {TEXTS[language]['workouts']}")
+        await message.reply("Пожалуйста, укажи число. Сколько у тебя тренировок в неделю?")
     except Exception as e:
         logging.error(f"Error in process_workouts for user {message.from_user.id}: {e}")
 
@@ -274,28 +254,27 @@ async def process_workouts(message: types.Message, state: FSMContext):
 async def process_preferences(message: types.Message, state: FSMContext):
     current_state = await state.get_state()
     logging.info(f"Received message '{message.text}' from user {message.from_user.id} with state {current_state}")
-    preferences = message.text.strip()
-    data = await state.get_data()
-    user = await db.get_user(message.from_user.id)
-    language = user["language"] if user else "ru"
     try:
+        preferences = message.text.strip()
+        data = await state.get_data()
+        logging.info(f"Data from state: {data}")
         await db.add_user(
             message.from_user.id, data["name"], data["height"], data["weight"],
-            data["age"], data["activity"], data["workouts"], preferences, language
+            data["age"], data["activity"], data["workouts"], preferences, "ru"
         )
-        await message.reply(TEXTS[language]["saved"], reply_markup=get_main_menu(language), parse_mode="Markdown")
+        await message.reply("✅ *Данные сохранены!* Что дальше?", reply_markup=get_main_menu("ru"), parse_mode="Markdown")
         await state.finish()
         logging.info(f"Processed preferences and finished state for user {message.from_user.id}")
     except Exception as e:
         logging.error(f"Error in process_preferences for user {message.from_user.id}: {e}")
+        await message.reply("Произошла ошибка при сохранении данных. Попробуйте позже.")
 
 @dp.callback_query(lambda c: c.data == "daily_plan")
 async def daily_plan(callback: types.CallbackQuery):
     logging.info(f"Received callback 'daily_plan' from user {callback.from_user.id}")
     user = await db.get_user(callback.from_user.id)
     if not user:
-        language = "ru"
-        await callback.message.reply(TEXTS[language]["register_first"], reply_markup=get_main_menu(language))
+        await callback.message.reply("Сначала зарегистрируйся!", reply_markup=get_main_menu("ru"))
         return
     language = user["language"]
     subscription = await db.get_subscription(callback.from_user.id)
@@ -308,11 +287,9 @@ async def daily_plan(callback: types.CallbackQuery):
         markup = InlineKeyboardMarkup().row(
             InlineKeyboardButton("💫 Stars (50 XTR)", callback_data="pay_stars"),
             InlineKeyboardButton("💳 Карта (500 UAH)", callback_data="pay_stripe")
-        ).add(InlineKeyboardButton("⬅️ Назад" if language == "ru" else "⬅️ Back" if language == "en" else "⬅️ Назад", callback_data="back_to_main"))
+        ).add(InlineKeyboardButton("⬅️ Назад", callback_data="back_to_main"))
         await callback.message.reply(
-            "Подписка на 30 дней доступа к дневному рациону:" if language == "ru" else
-            "Subscription for 30 days of daily meal plans:" if language == "en" else
-            "Підписка на 30 днів доступу до денного раціону:",
+            "Подписка на 30 дней доступа к дневному рациону:",
             reply_markup=markup
         )
     else:
@@ -327,11 +304,11 @@ async def pay_stars(callback: types.CallbackQuery):
     language = user["language"]
     await bot.send_invoice(
         callback.from_user.id,
-        title="Подписка на 30 дней" if language == "ru" else "30-Day Subscription" if language == "en" else "Підписка на 30 днів",
-        description="Доступ к дневному рациону на 30 дней" if language == "ru" else "Access to daily meal plans for 30 days" if language == "en" else "Доступ до денного раціону на 30 днів",
+        title="Подписка на 30 дней",
+        description="Доступ к дневному рациону на 30 дней",
         provider_token="",
         currency="XTR",
-        prices=[types.LabeledPrice(label="Подписка" if language == "ru" else "Subscription" if language == "en" else "Підписка", amount=50)],
+        prices=[types.LabeledPrice(label="Подписка", amount=50)],
         payload="subscription_stars"
     )
 
@@ -341,11 +318,9 @@ async def pay_stripe(callback: types.CallbackQuery):
     user = await db.get_user(callback.from_user.id)
     language = user["language"]
     payment_url = await create_stripe_link(callback.from_user.id)
-    markup = InlineKeyboardMarkup().add(InlineKeyboardButton("Оплатить" if language == "ru" else "Pay" if language == "en" else "Сплатити", url=payment_url))
+    markup = InlineKeyboardMarkup().add(InlineKeyboardButton("Оплатить", url=payment_url))
     await callback.message.reply(
-        "Перейди по ссылке для оплаты (500 UAH):" if language == "ru" else
-        "Follow the link to pay (500 UAH):" if language == "en" else
-        "Перейди за посиланням для оплати (500 UAH):",
+        "Перейди по ссылке для оплаты (500 UAH):",
         reply_markup=markup
     )
 
