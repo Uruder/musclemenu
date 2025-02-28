@@ -1,3 +1,6 @@
+import os
+import asyncpg  # Добавляем импорт asyncpg
+
 class Database:
     def __init__(self):
         self.pool = None
