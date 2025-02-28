@@ -365,7 +365,7 @@ async def send_reminders():
                 await bot.send_message(user["user_id"], msg, reply_markup=get_main_menu(language))
 
 async def on_startup(dispatcher):
-    logging.info("Starting bot setup...")
+    logging.info("Entering on_startup function")
     try:
         await db.connect()
         logging.info("Database connected")
@@ -391,5 +391,10 @@ request_handler.register(app, path=WEBHOOK_PATH)
 setup_application(app, dp, bot=bot)
 
 if __name__ == "__main__":
-    logging.info("Running web app...")
+    logging.info("Preparing to run web app...")
+    app = web.Application()
+    request_handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
+    request_handler.register(app, path=WEBHOOK_PATH)
+    setup_application(app, dp, bot=bot)
+    logging.info("Web app setup complete, starting server...")
     web.run_app(app, host=WEBAPP_HOST, port=WEBAPP_PORT)
