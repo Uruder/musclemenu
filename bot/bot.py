@@ -10,7 +10,7 @@ from database import Database
 from datetime import datetime, timedelta
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
-from aiogram.filters import Command  # Добавлен импорт фильтра Command
+from aiogram.filters import Command
 
 # Загрузка переменных окружения
 load_dotenv()
@@ -260,7 +260,7 @@ async def process_preferences(message: types.Message, state: FSMContext):
     await message.reply(TEXTS[language]["saved"], reply_markup=get_main_menu(language), parse_mode="Markdown")
     await state.finish()
 
-@dp.callback_query_handler(lambda c: c.data == "daily_plan")
+@dp.callback_query(lambda c: c.data == "daily_plan")
 async def daily_plan(callback: types.CallbackQuery):
     user = await db.get_user(callback.from_user.id)
     if not user:
@@ -290,7 +290,7 @@ async def daily_plan(callback: types.CallbackQuery):
         ration = await generate_daily_recipe(user)
         await callback.message.reply(ration, reply_markup=get_back_menu(ration, language), parse_mode="Markdown")
 
-@dp.callback_query_handler(lambda c: c.data == "pay_stars")
+@dp.callback_query(lambda c: c.data == "pay_stars")
 async def pay_stars(callback: types.CallbackQuery):
     user = await db.get_user(callback.from_user.id)
     language = user["language"]
@@ -304,7 +304,7 @@ async def pay_stars(callback: types.CallbackQuery):
         payload="subscription_stars"
     )
 
-@dp.callback_query_handler(lambda c: c.data == "pay_stripe")
+@dp.callback_query(lambda c: c.data == "pay_stripe")
 async def pay_stripe(callback: types.CallbackQuery):
     user = await db.get_user(callback.from_user.id)
     language = user["language"]
