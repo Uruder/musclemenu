@@ -118,17 +118,18 @@ class UserForm(StatesGroup):
 
 # Главное меню
 def get_main_menu(language="ru"):
-    return InlineKeyboardMarkup().row(
-        InlineKeyboardButton("🍽", callback_data="daily_plan")
-    ).row(
-        InlineKeyboardButton("🌐 Язык" if language == "ru" else "🌐 Language" if language == "en" else "🌐 Мова", callback_data="switch_language")
-    )
+    return types.InlineKeyboardMarkup(inline_keyboard=[
+        [types.InlineKeyboardButton(text="🍽", callback_data="daily_plan")],
+        [types.InlineKeyboardButton(text="🌐 Язык" if language == "ru" else "🌐 Language" if language == "en" else "🌐 Мова", callback_data="switch_language")]
+    ])
 
 # Меню с кнопкой "Назад" и "Поделиться"
 def get_back_menu(text_to_share="", language="ru"):
-    markup = InlineKeyboardMarkup().add(InlineKeyboardButton("⬅️ Назад" if language == "ru" else "⬅️ Back" if language == "en" else "⬅️ Назад", callback_data="back_to_main"))
+    markup = types.InlineKeyboardMarkup(inline_keyboard=[
+        [types.InlineKeyboardButton(text="⬅️ Назад" if language == "ru" else "⬅️ Back" if language == "en" else "⬅️ Назад", callback_data="back_to_main")]
+    ])
     if text_to_share:
-        markup.add(InlineKeyboardButton("📤 Поделиться" if language == "ru" else "📤 Share" if language == "en" else "📤 Поділитися", url=f"https://t.me/share/url?url={text_to_share.replace(' ', '%20')}"))
+        markup.inline_keyboard.append([types.InlineKeyboardButton(text="📤 Поделиться" if language == "ru" else "📤 Share" if language == "en" else "📤 Поділитися", url=f"https://t.me/share/url?url={text_to_share.replace(' ', '%20')}")])
     return markup
 
 async def create_stripe_link(user_id):
@@ -284,10 +285,11 @@ async def daily_plan(callback: types.CallbackQuery):
         ration = await generate_daily_recipe(user)
         await callback.message.reply(ration, reply_markup=get_back_menu(ration, language), parse_mode="Markdown")
     elif subscription and subscription["trial_used"]:
-        markup = InlineKeyboardMarkup().row(
-            InlineKeyboardButton("💫 Stars (50 XTR)", callback_data="pay_stars"),
-            InlineKeyboardButton("💳 Карта (500 UAH)", callback_data="pay_stripe")
-        ).add(InlineKeyboardButton("⬅️ Назад", callback_data="back_to_main"))
+        markup = types.InlineKeyboardMarkup(inline_keyboard=[
+            [types.InlineKeyboardButton(text="💫 Stars (50 XTR)", callback_data="pay_stars"),
+             types.InlineKeyboardButton(text="💳 Карта (500 UAH)", callback_data="pay_stripe")],
+            [types.InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_main")]
+        ])
         await callback.message.reply(
             "Подписка на 30 дней доступа к дневному рациону:",
             reply_markup=markup
@@ -318,7 +320,9 @@ async def pay_stripe(callback: types.CallbackQuery):
     user = await db.get_user(callback.from_user.id)
     language = user["language"]
     payment_url = await create_stripe_link(callback.from_user.id)
-    markup = InlineKeyboardMarkup().add(InlineKeyboardButton("Оплатить", url=payment_url))
+    markup = types.InlineKeyboardMarkup(inline_keyboard=[
+        [types.InlineKeyboardButton(text="Оплатить", url=payment_url)]
+    ])
     await callback.message.reply(
         "Перейди по ссылке для оплаты (500 UAH):",
         reply_markup=markup
