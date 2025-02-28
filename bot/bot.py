@@ -264,8 +264,8 @@ async def process_preferences(message: types.Message, state: FSMContext):
             data["age"], data["activity"], data["workouts"], preferences, "ru"
         )
         await message.reply("✅ *Данные сохранены!* Что дальше?", reply_markup=get_main_menu("ru"), parse_mode="Markdown")
-        await state.finish()
-        logging.info(f"Processed preferences and finished state for user {message.from_user.id}")
+        await state.clear()  # Используем clear() вместо finish()
+        logging.info(f"Processed preferences and cleared state for user {message.from_user.id}")
     except Exception as e:
         logging.error(f"Error in process_preferences for user {message.from_user.id}: {e}")
         await message.reply("Произошла ошибка при сохранении данных. Попробуйте позже.")
