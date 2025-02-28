@@ -282,9 +282,14 @@ async def daily_plan(callback: types.CallbackQuery):
     now = datetime.now()
     logging.info(f"Subscription status for user {callback.from_user.id}: {subscription}")
 
-    # Проверяем, есть ли пользователь в базе и не использовал ли он пробный период
-    if not subscription or (subscription and not subscription.get("trial_used", False)):
-        await db.set_trial_used(callback.from_user.id)
+    # Проверяем, есть ли пользователь в базе и предоставляем пробный доступ, если триал не использован
+    if not subscription:
+        await db.set_trial_used(callback.from_user.id)  # Устанавливаем trial_used=True для нового пользователя
+        ration = await generate_daily_recipe(user)
+        await callback.message.reply(ration, reply_markup=get_back_menu(ration, language), parse_mode="Markdown")
+        logging.info(f"Provided trial daily plan for user {callback.from_user.id}")
+    elif subscription and not subscription.get("trial_used", False):
+        await db.set_trial_used(callback.from_user.id)  # Устанавливаем trial_used=True
         ration = await generate_daily_recipe(user)
         await callback.message.reply(ration, reply_markup=get_back_menu(ration, language), parse_mode="Markdown")
         logging.info(f"Provided trial daily plan for user {callback.from_user.id}")
