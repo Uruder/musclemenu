@@ -368,7 +368,7 @@ async def send_reminders():
                         msg += f"\n\n{TEXTS[language]['subscription_expired']}"
                 await bot.send_message(user["user_id"], msg, reply_markup=get_main_menu(language))
 
-async def on_startup(dispatcher):
+async def on_startup(_):
     logging.info("Entering on_startup function")
     try:
         await db.connect()
@@ -383,7 +383,7 @@ async def on_startup(dispatcher):
         logging.error(f"Startup failed: {e}")
         raise
 
-async def on_shutdown(dispatcher):
+async def on_shutdown(_):
     logging.info("Shutting down bot...")
     await bot.delete_webhook()
     await db.pool.close()
@@ -391,13 +391,11 @@ async def on_shutdown(dispatcher):
 
 # Создание приложения и запуск
 app = web.Application()
+app.on_startup.append(on_startup)
+app.on_shutdown.append(on_shutdown)
 request_handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
 request_handler.register(app, path=WEBHOOK_PATH)
 setup_application(app, dp, bot=bot)
-
-# Явный вызов on_startup перед запуском
-loop = asyncio.get_event_loop()
-loop.run_until_complete(on_startup(dp))
 
 if __name__ == "__main__":
     logging.info("Preparing to run bot...")
