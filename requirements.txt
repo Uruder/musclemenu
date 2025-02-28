@@ -1,6 +1,0 @@
-aiogram==3.0
-asyncpg==0.29
-python-dotenv==1.0.1
-aiohttp==3.9.5
-stripe==7.0.0
-flask==2.3.3
