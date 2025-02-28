@@ -162,7 +162,7 @@ async def start(message: types.Message, state: FSMContext):
     except Exception as e:
         logging.error(f"Error in start handler for user {message.from_user.id}: {e}")
 
-@dp.message(state=UserForm.name)
+@dp.message(UserForm.name)
 async def process_name(message: types.Message, state: FSMContext):
     current_state = await state.get_state()
     logging.info(f"Received message '{message.text}' from user {message.from_user.id} with state {current_state}")
@@ -174,7 +174,7 @@ async def process_name(message: types.Message, state: FSMContext):
     except Exception as e:
         logging.error(f"Error in process_name for user {message.from_user.id}: {e}")
 
-@dp.message(state=UserForm.height)
+@dp.message(UserForm.height)
 async def process_height(message: types.Message, state: FSMContext):
     current_state = await state.get_state()
     logging.info(f"Received message '{message.text}' from user {message.from_user.id} with state {current_state}")
@@ -193,7 +193,7 @@ async def process_height(message: types.Message, state: FSMContext):
     except Exception as e:
         logging.error(f"Error in process_height for user {message.from_user.id}: {e}")
 
-@dp.message(state=UserForm.weight)
+@dp.message(UserForm.weight)
 async def process_weight(message: types.Message, state: FSMContext):
     current_state = await state.get_state()
     logging.info(f"Received message '{message.text}' from user {message.from_user.id} with state {current_state}")
@@ -212,7 +212,7 @@ async def process_weight(message: types.Message, state: FSMContext):
     except Exception as e:
         logging.error(f"Error in process_weight for user {message.from_user.id}: {e}")
 
-@dp.message(state=UserForm.age)
+@dp.message(UserForm.age)
 async def process_age(message: types.Message, state: FSMContext):
     current_state = await state.get_state()
     logging.info(f"Received message '{message.text}' from user {message.from_user.id} with state {current_state}")
@@ -231,7 +231,7 @@ async def process_age(message: types.Message, state: FSMContext):
     except Exception as e:
         logging.error(f"Error in process_age for user {message.from_user.id}: {e}")
 
-@dp.message(state=UserForm.activity)
+@dp.message(UserForm.activity)
 async def process_activity(message: types.Message, state: FSMContext):
     current_state = await state.get_state()
     logging.info(f"Received message '{message.text}' from user {message.from_user.id} with state {current_state}")
@@ -251,7 +251,7 @@ async def process_activity(message: types.Message, state: FSMContext):
     except Exception as e:
         logging.error(f"Error in process_activity for user {message.from_user.id}: {e}")
 
-@dp.message(state=UserForm.workouts)
+@dp.message(UserForm.workouts)
 async def process_workouts(message: types.Message, state: FSMContext):
     current_state = await state.get_state()
     logging.info(f"Received message '{message.text}' from user {message.from_user.id} with state {current_state}")
@@ -270,7 +270,7 @@ async def process_workouts(message: types.Message, state: FSMContext):
     except Exception as e:
         logging.error(f"Error in process_workouts for user {message.from_user.id}: {e}")
 
-@dp.message(state=UserForm.preferences)
+@dp.message(UserForm.preferences)
 async def process_preferences(message: types.Message, state: FSMContext):
     current_state = await state.get_state()
     logging.info(f"Received message '{message.text}' from user {message.from_user.id} with state {current_state}")
