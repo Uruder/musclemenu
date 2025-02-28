@@ -95,7 +95,7 @@ TEXTS = {
         "age": "Скільки тобі років?",
         "activity": "Який у тебе рівень активності (низький/середній/високий)?",
         "workouts": "Скільки у тебе тренувань на тиждень?",
-        "preferences": "Які продукти ти любиш? (Наприклад: 🍗 курка, 🥚 яйця, 🍚 рис)\nЗалиш порожнім, якщо немає вподобань.",
+        "preferences": "Які продукти ти любиш? (Например: 🍗 курка, 🥚 яйця, 🍚 рис)\nЗалиш порожнім, якщо немає вподобань.",
         "saved": "✅ *Дані збережено!* Що далі?",
         "daily_plan": "🍽 *Денний раціон* 🍽",
         "payment_success": "🎉 Дякую за покупку!",
@@ -389,12 +389,6 @@ async def on_shutdown(dispatcher):
     await db.pool.close()
     logging.info("Webhook stopped and DB closed")
 
-async def main():
-    logging.info("Starting main function")
-    await on_startup(dp)
-    logging.info("Main setup complete, running web app")
-    await web.run_app(app, host=WEBAPP_HOST, port=WEBAPP_PORT)
-
 if __name__ == "__main__":
     logging.info("Preparing to run bot...")
     app = web.Application()
@@ -402,4 +396,4 @@ if __name__ == "__main__":
     request_handler.register(app, path=WEBHOOK_PATH)
     setup_application(app, dp, bot=bot)
     logging.info("Web app setup complete")
-    asyncio.run(main())
+    web.run_app(app, host=WEBAPP_HOST, port=WEBAPP_PORT)
