@@ -1,5 +1,5 @@
-import asyncpg
 import os
+import asyncpg
 from dotenv import load_dotenv
 import logging
 
@@ -49,25 +49,44 @@ class Database:
             await conn.execute("""
                 INSERT INTO users (user_id, name, height, weight, age, activity_level, workouts_per_week, preferences, language)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-                ON CONFLICT (user_id) DO NOTHING
+                ON CONFLICT (user_id) DO UPDATE SET 
+                    name = EXCLUDED.name,
+                    height = EXCLUDED.height,
+                    weight = EXCLUDED.weight,
+                    age = EXCLUDED.age,
+                    activity_level = EXCLUDED.activity_level,
+                    workouts_per_week = EXCLUDED.workouts_per_week,
+                    preferences = EXCLUDED.preferences,
+                    language = EXCLUDED.language,
+                    created_at = CURRENT_TIMESTAMP
             """, user_id, name, height, weight, age, activity, workouts, preferences, language)
-            logging.info(f"User {user_id} added or skipped")
+            logging.info(f"User {user_id} added or updated")
 
-    async def set_trial_used(self, user_id):
+    async def set_trial_used(self, user_id, reset=False):
         async with self.pool.acquire() as conn:
-            await conn.execute("""
-                INSERT INTO payments (user_id, trial_used)
-                VALUES ($1, TRUE)
-                ON CONFLICT (user_id) DO UPDATE SET trial_used = TRUE
-            """, user_id)
+            if reset:
+                # Сбрасываем trial_used для нового пробного доступа
+                await conn.execute("""
+                    INSERT INTO payments (user_id, trial_used)
+                    VALUES ($1, FALSE)
+                    ON CONFLICT (user_id) DO UPDATE SET trial_used = FALSE
+                """, user_id)
+            else:
+                await conn.execute("""
+                    INSERT INTO payments (user_id, trial_used)
+                    VALUES ($1, TRUE)
+                    ON CONFLICT (user_id) DO UPDATE SET trial_used = TRUE
+                """, user_id)
+            logging.info(f"Trial status for user {user_id} set to {not reset}")
 
     async def set_subscription(self, user_id, subscription_end):
         async with self.pool.acquire() as conn:
             await conn.execute("""
-                INSERT INTO payments (user_id, subscription_end)
-                VALUES ($1, $2)
+                INSERT INTO payments (user_id, subscription_end, trial_used)
+                VALUES ($1, $2, FALSE)
                 ON CONFLICT (user_id) DO UPDATE SET subscription_end = $2, trial_used = FALSE
             """, user_id, subscription_end)
+            logging.info(f"Subscription set for user {user_id} until {subscription_end}")
 
     async def get_subscription(self, user_id):
         async with self.pool.acquire() as conn:
@@ -75,8 +94,18 @@ class Database:
 
     async def reset_subscription(self, user_id):
         async with self.pool.acquire() as conn:
-            await conn.execute("UPDATE payments SET trial_used = TRUE, subscription_end = NULL WHERE user_id = $1", user_id)
+            await conn.execute("""
+                UPDATE payments SET trial_used = TRUE, subscription_end = NULL, payment_id = NULL WHERE user_id = $1
+            """, user_id)
+            logging.info(f"Subscription reset for user {user_id}")
 
     async def get_user(self, user_id):
         async with self.pool.acquire() as conn:
             return await conn.fetchrow("SELECT * FROM users WHERE user_id = $1", user_id)
+
+    async def update_user_language(self, user_id, language):
+        async with self.pool.acquire() as conn:
+            await conn.execute("""
+                UPDATE users SET language = $2 WHERE user_id = $1
+            """, user_id, language)
+            logging.info(f"Language updated to {language} for user {user_id}")
