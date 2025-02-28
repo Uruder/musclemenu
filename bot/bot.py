@@ -282,8 +282,8 @@ async def daily_plan(callback: types.CallbackQuery):
     now = datetime.now()
     logging.info(f"Subscription status for user {callback.from_user.id}: {subscription}")
 
-    if not subscription or (subscription["trial_used"] is False):
-        # Пробный доступ для новых пользователей
+    # Проверяем, есть ли пользователь в базе и не использовал ли он пробный период
+    if not subscription or (subscription and not subscription.get("trial_used", False)):
         await db.set_trial_used(callback.from_user.id)
         ration = await generate_daily_recipe(user)
         await callback.message.reply(ration, reply_markup=get_back_menu(ration, language), parse_mode="Markdown")
@@ -305,6 +305,35 @@ async def daily_plan(callback: types.CallbackQuery):
         logging.info(f"Offered subscription for user {callback.from_user.id}")
     else:
         await callback.message.reply("Произошла ошибка. Попробуйте позже.", reply_markup=get_main_menu(language))
+
+@dp.callback_query(lambda c: c.data == "back_to_main")
+async def back_to_main(callback: types.CallbackQuery):
+    logging.info(f"Received callback 'back_to_main' from user {callback.from_user.id}")
+    user = await db.get_user(callback.from_user.id)
+    if not user:
+        await callback.message.reply("Сначала зарегистрируйтесь!", reply_markup=get_main_menu("ru"))
+        return
+    language = user["language"]
+    await callback.message.reply(TEXTS[language]["back_to_main"], reply_markup=get_main_menu(language), parse_mode="Markdown")
+    logging.info(f"Returned to main menu for user {callback.from_user.id}")
+
+@dp.callback_query(lambda c: c.data == "switch_language")
+async def switch_language(callback: types.CallbackQuery):
+    logging.info(f"Received callback 'switch_language' from user {callback.from_user.id}")
+    user = await db.get_user(callback.from_user.id)
+    if not user:
+        await callback.message.reply("Сначала зарегистрируйтесь!", reply_markup=get_main_menu("ru"))
+        return
+
+    current_language = user["language"]
+    languages = ["ru", "en", "uk"]
+    current_index = languages.index(current_language)
+    new_language = languages[(current_index + 1) % 3]  # Переключаем на следующий язык
+
+    # Обновляем язык в базе данных
+    await db.update_user_language(callback.from_user.id, new_language)
+    await callback.message.reply(TEXTS[new_language]["back_to_main"], reply_markup=get_main_menu(new_language), parse_mode="Markdown")
+    logging.info(f"Switched language to {new_language} for user {callback.from_user.id}")
 
 @dp.callback_query(lambda c: c.data == "pay_stars")
 async def pay_stars(callback: types.CallbackQuery):
