@@ -61,6 +61,7 @@ TEXTS = {
         "age": "Сколько тебе лет?",
         "activity": "Какой у тебя уровень активности (низкая/средняя/высокая)?",
         "workouts": "Сколько у тебя тренировок в неделю?",
+        "goal": "Какая твоя цель? (набор массы/снижение веса/поддержание веса)",
         "preferences": "Какие продукты ты любишь? (Например: 🍗 курица, 🥚 яйца, 🍚 рис)\nОставь пустым, если нет предпочтений.",
         "saved": "✅ *Данные сохранены!* Что дальше?",
         "daily_plan": "🍽 *Дневной рацион* 🍽",
@@ -78,6 +79,7 @@ TEXTS = {
         "age": "How old are you?",
         "activity": "What’s your activity level (low/medium/high)?",
         "workouts": "How many workouts do you have per week?",
+        "goal": "What’s your goal? (weight gain/weight loss/weight maintenance)",
         "preferences": "What foods do you like? (E.g., 🍗 chicken, 🥚 eggs, 🍚 rice)\nLeave empty if no preferences.",
         "saved": "✅ *Data saved!* What’s next?",
         "daily_plan": "🍽 *Daily Meal Plan* 🍽",
@@ -95,6 +97,7 @@ TEXTS = {
         "age": "Скільки тобі років?",
         "activity": "Який у тебе рівень активності (низький/середній/високий)?",
         "workouts": "Скільки у тебе тренувань на тиждень?",
+        "goal": "Яка твоя мета? (набір маси/схуднення/підтримка ваги)",
         "preferences": "Які продукти ти любиш? (Например: 🍗 курка, 🥚 яйця, 🍚 рис)\nЗалиш порожнім, якщо немає вподобань.",
         "saved": "✅ *Дані збережено!* Що далі?",
         "daily_plan": "🍽 *Денний раціон* 🍽",
@@ -114,6 +117,7 @@ class UserForm(StatesGroup):
     age = State()
     activity = State()
     workouts = State()
+    goal = State()  # Добавляем состояние для цели
     preferences = State()
 
 # Главное меню
@@ -151,7 +155,72 @@ async def create_stripe_link(user_id):
     return session.url
 
 async def generate_daily_recipe(user_data):
-    return "Пример дневного рациона"
+    """
+    Генерирует дневной рацион на основе данных пользователя.
+    Учитывает возраст, вес, рост, активность, тренировки, предпочтения и цель.
+    """
+    height = user_data["height"]
+    weight = user_data["weight"]
+    age = user_data["age"]
+    activity = user_data["activity"].lower()
+    workouts = user_data["workouts"]
+    preferences = user_data.get("preferences", "").lower().split(", ") if user_data.get("preferences") else []
+    goal = user_data.get("goal", "gain_mass")  # По умолчанию — набор массы
+
+    # Расчёт базового уровня метаболизма (BMR) по формуле Миффлина-Сан Жеора
+    bmr = 10 * weight + 6.25 * height - 5 * age + 5  # Для мужчин, для женщин: + (-161)
+    activity_multipliers = {
+        "низкая": 1.2,
+        "средняя": 1.55,
+        "высокая": 1.9,
+        "low": 1.2,
+        "medium": 1.55,
+        "high": 1.9,
+        "низький": 1.2,
+        "середній": 1.55,
+        "високий": 1.9
+    }
+    total_calories = bmr * activity_multipliers[activity] + (workouts * 300)  # Добавляем калории для тренировок
+
+    # Корректируем калории в зависимости от цели
+    if goal == "gain_mass":
+        total_calories *= 1.15  # Набор массы — +15%
+    elif goal == "lose_weight":
+        total_calories *= 0.85  # Снижение веса — -15%
+    elif goal == "maintain_weight":
+        total_calories *= 1.0  # Поддержание веса — без изменений
+
+    # Распределяем калории на макронутриенты (пример: 40% углеводы, 30% белки, 30% жиры)
+    carbs_cal = total_calories * 0.4 / 4  # Углеводы (4 ккал/г)
+    protein_cal = total_calories * 0.3 / 4  # Белки (4 ккал/г)
+    fat_cal = total_calories * 0.3 / 9  # Жиры (9 ккал/г)
+
+    # Фильтруем рецепты по предпочтениям, если они указаны
+    available_recipes = RECIPES
+    if preferences:
+        available_recipes = [recipe for recipe in RECIPES if any(pref in recipe["recipe"].lower() for pref in preferences)]
+
+    if not available_recipes:
+        available_recipes = RECIPES  # Если предпочтения не подходят, используем все рецепты
+
+    # Выбираем случайные рецепты, чтобы покрыть дневную норму калорий
+    selected_recipes = []
+    total_cal = 0
+    for recipe in available_recipes:
+        if total_cal < total_calories * 0.9:  # Оставляем 10% для гибкости
+            selected_recipes.append(recipe)
+            total_cal += recipe["calories"]
+        if len(selected_recipes) >= 3:  # Ограничиваем до 3 блюд в день
+            break
+
+    # Формируем текст рациона
+    language = user_data.get("language", "ru")  # Получаем язык пользователя
+    ration_text = f"🍽 *{'Дневной рацион' if language == 'ru' else 'Daily Meal Plan' if language == 'en' else 'Денний раціон'} ({goal.replace('_', ' ').title()}):*\n\n"
+    for recipe in selected_recipes:
+        ration_text += f"- {recipe['name']} ({recipe['calories']} ккал, белки: {recipe['protein']}г, жиры: {recipe['fat']}г, углеводы: {recipe['carbs']}г)\n  {recipe['recipe']}\n\n"
+    ration_text += f"Общая калорийность: {total_cal:.0f} ккал (примерно {total_calories:.0f} ккал необходимо для {goal.replace('_', ' ').title()})."
+
+    return ration_text
 
 @dp.message(Command(commands=['start']))
 async def start(message: types.Message, state: FSMContext):
@@ -183,7 +252,7 @@ async def start(message: types.Message, state: FSMContext):
                 [types.InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_main")]
             ])
             await message.reply(
-                "Подписка на 30 дней доступа к дневному рациону:",
+                TEXTS[language]["daily_plan"] if language in TEXTS and "daily_plan" in TEXTS[language] else "Подписка на 30 дней доступа к дневному рациону:",
                 reply_markup=markup
             )
             logging.info(f"Offered subscription for user {message.from_user.id} because trial_used=True")
@@ -277,13 +346,40 @@ async def process_workouts(message: types.Message, state: FSMContext):
     try:
         workouts = int(message.text)
         await state.update_data(workouts=workouts)
-        await message.reply("Какие продукты ты любишь? (Например: 🍗 курица, 🥚 яйца, 🍚 рис)\nОставь пустым, если нет предпочтений.")
-        await state.set_state(UserForm.preferences)
-        logging.info(f"Processed workouts and set preferences state for user {message.from_user.id}")
+        await message.reply("Какая твоя цель? (набор массы/снижение веса/поддержание веса)\nУкажи на русском, английском или украинском (например: набор массы, weight loss, набір маси).")
+        await state.set_state(UserForm.goal)
+        logging.info(f"Processed workouts and set goal state for user {message.from_user.id}")
     except ValueError:
         await message.reply("Пожалуйста, укажи число. Сколько у тебя тренировок в неделю?")
     except Exception as e:
         logging.error(f"Error in process_workouts for user {message.from_user.id}: {e}")
+
+@dp.message(UserForm.goal)
+async def process_goal(message: types.Message, state: FSMContext):
+    current_state = await state.get_state()
+    logging.info(f"Received message '{message.text}' from user {message.from_user.id} with state {current_state}")
+    goal = message.text.lower()
+    valid_goals = {
+        "набор массы": "gain_mass",
+        "снижение веса": "lose_weight",
+        "поддержание веса": "maintain_weight",
+        "weight gain": "gain_mass",
+        "weight loss": "lose_weight",
+        "weight maintenance": "maintain_weight",
+        "набір маси": "gain_mass",
+        "схуднення": "lose_weight",
+        "підтримка ваги": "maintain_weight"
+    }
+    if goal not in valid_goals:
+        await message.reply("Пожалуйста, укажи правильную цель: набор массы/снижение веса/поддержание веса (или аналог на английском/украинском).")
+        return
+    try:
+        await state.update_data(goal=valid_goals[goal])
+        await message.reply("Какие продукты ты любишь? (Например: 🍗 курица, 🥚 яйца, 🍚 рис)\nОставь пустым, если нет предпочтений.")
+        await state.set_state(UserForm.preferences)
+        logging.info(f"Processed goal and set preferences state for user {message.from_user.id}")
+    except Exception as e:
+        logging.error(f"Error in process_goal for user {message.from_user.id}: {e}")
 
 @dp.message(UserForm.preferences)
 async def process_preferences(message: types.Message, state: FSMContext):
@@ -295,7 +391,7 @@ async def process_preferences(message: types.Message, state: FSMContext):
         logging.info(f"Data from state: {data}")
         await db.add_user(
             message.from_user.id, data["name"], data["height"], data["weight"],
-            data["age"], data["activity"], data["workouts"], preferences, "ru"
+            data["age"], data["activity"], data["workouts"], preferences, "ru", data.get("goal", "gain_mass")
         )
         await message.reply("✅ *Данные сохранены!* Что дальше?", reply_markup=get_main_menu("ru"), parse_mode="Markdown")
         await state.clear()
@@ -345,7 +441,7 @@ async def daily_plan(callback: types.CallbackQuery):
                 [types.InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_main")]
             ])
             await callback.message.reply(
-                "Подписка на 30 дней доступа к дневному рациону:",
+                TEXTS[language]["daily_plan"] if language in TEXTS and "daily_plan" in TEXTS[language] else "Подписка на 30 дней доступа к дневному рациону:",
                 reply_markup=markup
             )
             logging.info(f"Offered subscription for user {callback.from_user.id}")
@@ -384,8 +480,13 @@ async def switch_language(callback: types.CallbackQuery):
 
         # Обновляем язык в базе данных
         await db.update_user_language(callback.from_user.id, new_language)
-        await callback.message.reply(TEXTS[new_language]["back_to_main"], reply_markup=get_main_menu(new_language), parse_mode="Markdown")
         logging.info(f"Switched language to {new_language} for user {callback.from_user.id}")
+        
+        # Получаем обновлённые данные пользователя для проверки
+        updated_user = await db.get_user(callback.from_user.id)
+        logging.info(f"Updated user language: {updated_user['language']}")
+
+        await callback.message.reply(TEXTS[new_language]["back_to_main"], reply_markup=get_main_menu(new_language), parse_mode="Markdown")
     except Exception as e:
         logging.error(f"Error in switch_language for user {callback.from_user.id}: {e}")
         await callback.message.reply("Произошла ошибка. Попробуйте позже.", reply_markup=get_main_menu("ru"))
