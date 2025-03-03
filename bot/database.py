@@ -45,7 +45,7 @@ class Database:
             """)
             logging.info("Tables created successfully")
 
-    async def add_user(self, user_id, name, height, weight, age, activity_level, workouts, preferences="", language="ru", goal="gain_mass"):
+    async def add_user(self, user_id, name, height, weight, age, activity_level, workouts_per_week, preferences="", language="ru", goal="gain_mass"):
         async with self.pool.acquire() as conn:
             await conn.execute("""
                 INSERT INTO users (user_id, name, height, weight, age, activity_level, workouts_per_week, preferences, language, goal)
@@ -61,7 +61,7 @@ class Database:
                     language = EXCLUDED.language,
                     goal = EXCLUDED.goal,
                     created_at = CURRENT_TIMESTAMP
-            """, user_id, name, height, weight, age, activity_level, workouts, preferences, language, goal)
+            """, user_id, name, height, weight, age, activity_level, workouts_per_week, preferences, language, goal)
             logging.info(f"User {user_id} added or updated")
             await self.reset_trial(user_id)  # Сбрасываем триал для нового или обновлённого пользователя
 
