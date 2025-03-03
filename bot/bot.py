@@ -317,7 +317,18 @@ async def daily_plan(callback: types.CallbackQuery):
         now = datetime.now()
         logging.info(f"Subscription status for user {callback.from_user.id}: {subscription}")
 
-        # Проверяем, есть ли подписка или триал
+        # Временная логика для тестирования: предоставляем бесплатный доступ для user_id 898243089
+        if callback.from_user.id == 898243089:
+            # Устанавливаем неограниченный доступ (например, до 2030 года)
+            if not subscription or not subscription["subscription_end"] or subscription["subscription_end"] < now:
+                await db.set_subscription(callback.from_user.id, datetime(2030, 1, 1, 0, 0))  # Установим подписку до 2030 года
+                subscription = await db.get_subscription(callback.from_user.id)  # Обновляем данные
+            ration = await generate_daily_recipe(user)
+            await callback.message.reply(ration, reply_markup=get_back_menu(ration, language), parse_mode="Markdown")
+            logging.info(f"Provided free trial daily plan for user {callback.from_user.id} (testing mode)")
+            return
+
+        # Обычная логика для других пользователей
         if not subscription or (subscription and not subscription["trial_used"]):
             await db.set_trial_used(callback.from_user.id)  # Устанавливаем, что триал использован
             ration = await generate_daily_recipe(user)
@@ -472,7 +483,6 @@ async def keep_alive():
         try:
             logging.info("Bot is alive and checking activity...")
             await asyncio.sleep(300)  # Проверка каждые 5 минут
-            # Можно добавить простой запрос к базе или пинг сервера
             async with db.pool.acquire() as conn:
                 await conn.execute("SELECT 1")  # Простой запрос для проверки подключения
         except Exception as e:
