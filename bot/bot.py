@@ -368,6 +368,7 @@ async def process_name(message: types.Message, state: FSMContext):
         logging.info(f"Processed name and set height state for user {message.from_user.id}")
     except Exception as e:
         logging.error(f"Error in process_name for user {message.from_user.id}: {e}")
+        await message.reply("Произошла ошибка. Попробуйте позже.", reply_markup=get_quick_menu("ru"))
 
 @dp.message(UserForm.height)
 async def process_height(message: types.Message, state: FSMContext):
@@ -383,6 +384,7 @@ async def process_height(message: types.Message, state: FSMContext):
         await message.reply("Пожалуйста, укажи число. Какой у тебя рост (в см)?", reply_markup=get_quick_menu("ru"))
     except Exception as e:
         logging.error(f"Error in process_height for user {message.from_user.id}: {e}")
+        await message.reply("Произошла ошибка. Попробуйте позже.", reply_markup=get_quick_menu("ru"))
 
 @dp.message(UserForm.weight)
 async def process_weight(message: types.Message, state: FSMContext):
@@ -398,6 +400,7 @@ async def process_weight(message: types.Message, state: FSMContext):
         await message.reply("Пожалуйста, укажи число. Какой у тебя вес (в кг)?", reply_markup=get_quick_menu("ru"))
     except Exception as e:
         logging.error(f"Error in process_weight for user {message.from_user.id}: {e}")
+        await message.reply("Произошла ошибка. Попробуйте позже.", reply_markup=get_quick_menu("ru"))
 
 @dp.message(UserForm.age)
 async def process_age(message: types.Message, state: FSMContext):
@@ -413,6 +416,7 @@ async def process_age(message: types.Message, state: FSMContext):
         await message.reply("Пожалуйста, укажи число. Сколько тебе лет?", reply_markup=get_quick_menu("ru"))
     except Exception as e:
         logging.error(f"Error in process_age for user {message.from_user.id}: {e}")
+        await message.reply("Произошла ошибка. Попробуйте позже.", reply_markup=get_quick_menu("ru"))
 
 @dp.message(UserForm.activity)
 async def process_activity(message: types.Message, state: FSMContext):
@@ -429,6 +433,7 @@ async def process_activity(message: types.Message, state: FSMContext):
         logging.info(f"Processed activity_level and set workouts state for user {message.from_user.id}")
     except Exception as e:
         logging.error(f"Error in process_activity for user {message.from_user.id}: {e}")
+        await message.reply("Произошла ошибка. Попробуйте позже.", reply_markup=get_quick_menu("ru"))
 
 @dp.message(UserForm.workouts)
 async def process_workouts(message: types.Message, state: FSMContext):
@@ -444,6 +449,7 @@ async def process_workouts(message: types.Message, state: FSMContext):
         await message.reply("Пожалуйста, укажи число. Сколько у тебя тренировок в неделю?", reply_markup=get_quick_menu("ru"))
     except Exception as e:
         logging.error(f"Error in process_workouts for user {message.from_user.id}: {e}")
+        await message.reply("Произошла ошибка. Попробуйте позже.", reply_markup=get_quick_menu("ru"))
 
 @dp.message(UserForm.goal)
 async def process_goal(message: types.Message, state: FSMContext):
@@ -471,6 +477,7 @@ async def process_goal(message: types.Message, state: FSMContext):
         logging.info(f"Processed goal and set preferences state for user {message.from_user.id}")
     except Exception as e:
         logging.error(f"Error in process_goal for user {message.from_user.id}: {e}")
+        await message.reply("Произошла ошибка. Попробуйте позже.", reply_markup=get_quick_menu("ru"))
 
 @dp.message(UserForm.preferences)
 async def process_preferences(message: types.Message, state: FSMContext):
@@ -561,4 +568,222 @@ async def switch_language(callback: types.CallbackQuery):
     try:
         user = await db.get_user(callback.from_user.id)
         if not user:
-            await callback.message
+            await callback.message.reply("Сначала зарегистрируйтесь!", reply_markup=get_main_menu("ru"))
+            return
+
+        current_language = user["language"]
+        languages = ["ru", "en", "uk"]
+        current_index = languages.index(current_language)
+        new_language = languages[(current_index + 1) % 3]  # Переключаем на следующий язык
+
+        # Обновляем язык в базе данных
+        await db.update_user_language(callback.from_user.id, new_language)
+        logging.info(f"Switched language to {new_language} for user {callback.from_user.id}")
+        
+        # Получаем обновлённые данные пользователя для проверки
+        updated_user = await db.get_user(callback.from_user.id)
+        logging.info(f"Updated user language: {updated_user['language']}")
+
+        await callback.message.reply(TEXTS[new_language]["back_to_main"], reply_markup=get_quick_menu(new_language), parse_mode="Markdown")
+    except Exception as e:
+        logging.error(f"Error in switch_language for user {callback.from_user.id}: {e}")
+        await callback.message.reply("Произошла ошибка. Попробуйте позже.", reply_markup=get_quick_menu("ru"))
+
+@dp.callback_query(lambda c: c.data == "pay_stars")
+async def pay_stars(callback: types.CallbackQuery):
+    logging.info(f"Received callback 'pay_stars' from user {callback.from_user.id}")
+    try:
+        user = await db.get_user(callback.from_user.id)
+        language = user["language"]
+        await bot.send_invoice(
+            callback.from_user.id,
+            title="Подписка на 30 дней",
+            description="Доступ к дневному рациону на 30 дней",
+            provider_token="",
+            currency="XTR",
+            prices=[types.LabeledPrice(label="Подписка", amount=50)],
+            payload="subscription_stars"
+        )
+    except Exception as e:
+        logging.error(f"Error in pay_stars for user {callback.from_user.id}: {e}")
+        await callback.message.reply("Произошла ошибка при обработке оплаты. Попробуйте позже.", reply_markup=get_main_menu(language))
+
+@dp.callback_query(lambda c: c.data == "pay_stripe")
+async def pay_stripe(callback: types.CallbackQuery):
+    logging.info(f"Received callback 'pay_stripe' from user {callback.from_user.id}")
+    try:
+        user = await db.get_user(callback.from_user.id)
+        language = user["language"]
+        payment_url = await create_stripe_link(callback.from_user.id)
+        markup = types.InlineKeyboardMarkup(inline_keyboard=[
+            [types.InlineKeyboardButton(text="Оплатить", url=payment_url)]
+        ])
+        await callback.message.reply(
+            "Перейди по ссылке для оплаты (500 UAH):",
+            reply_markup=markup
+        )
+    except Exception as e:
+        logging.error(f"Error in pay_stripe for user {callback.from_user.id}: {e}")
+        await callback.message.reply("Произошла ошибка при обработке оплаты. Попробуйте позже.", reply_markup=get_main_menu(language))
+
+@dp.pre_checkout_query()
+async def pre_checkout(pre_checkout_query: types.PreCheckoutQuery):
+    logging.info(f"Received pre_checkout_query from user {pre_checkout_query.from_user.id}")
+    try:
+        await bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True)
+    except Exception as e:
+        logging.error(f"Error in pre_checkout for user {pre_checkout_query.from_user.id}: {e}")
+
+@dp.message()
+async def successful_payment(message: types.Message):
+    logging.info(f"Received message with content_type: {message.content_type} from user {message.from_user.id}")
+    try:
+        if message.content_type != types.ContentType.SUCCESSFUL_PAYMENT:
+            return
+        user = await db.get_user(message.from_user.id)
+        language = user["language"]
+        subscription_end = datetime.now() + timedelta(days=30)
+        await db.set_subscription(message.from_user.id, subscription_end)
+        ration = await generate_daily_recipe(user)
+        await message.reply(ration + f"\n\n{TEXTS[language]['payment_success']}", reply_markup=get_back_menu(ration, language), parse_mode="Markdown")
+        logging.info(f"Payment processed for user {message.from_user.id}")
+    except Exception as e:
+        logging.error(f"Error in successful_payment for user {message.from_user.id}: {e}")
+        await message.reply("Произошла ошибка при обработке оплаты. Попробуйте позже.", reply_markup=get_main_menu(language))
+
+# Добавляем обработчики для отладки
+@dp.message()
+async def catch_all_messages(message: types.Message):
+    logging.info(f"Caught unhandled message from user {message.from_user.id}: {message.text} (content_type: {message.content_type}, chat_id: {message.chat.id})")
+
+@dp.callback_query()
+async def catch_all_callbacks(callback: types.CallbackQuery):
+    logging.info(f"Caught unhandled callback from user {callback.from_user.id}: {callback.data}")
+
+@dp.message(lambda message: message.text in [
+    "Daily Plan", "Дневной рацион", "Денний раціон"
+])
+async def quick_daily_plan(message: types.Message):
+    logging.info(f"Received quick menu 'Daily Plan' from user {message.from_user.id} with text: {message.text}")
+    user = await db.get_user(message.from_user.id)
+    if not user:
+        await message.reply("Сначала зарегистрируйтесь!", reply_markup=get_quick_menu("ru"))
+        return
+    language = user["language"]
+    await daily_plan(types.CallbackQuery(message=message, data="daily_plan", from_user=message.from_user))
+
+@dp.message(lambda message: message.text in ["🌐 Language", "🌐 Язык", "🌐 Мова"])
+async def quick_switch_language(message: types.Message):
+    logging.info(f"Received quick menu 'Language' from user {message.from_user.id} with text: {message.text}")
+    user = await db.get_user(message.from_user.id)
+    if not user:
+        await message.reply("Сначала зарегистрируйтесь!", reply_markup=get_quick_menu("ru"))
+        return
+    language = user["language"]
+    await switch_language(types.CallbackQuery(message=message, data="switch_language", from_user=message.from_user.id))
+
+@dp.message(lambda message: message.text in ["Back", "Назад"])
+async def quick_back_to_main(message: types.Message):
+    logging.info(f"Received quick menu 'Back' from user {message.from_user.id} with text: {message.text}")
+    user = await db.get_user(message.from_user.id)
+    if not user:
+        await message.reply("Сначала зарегистрируйтесь!", reply_markup=get_quick_menu("ru"))
+        return
+    language = user["language"]
+    await back_to_main(types.CallbackQuery(message=message, data="back_to_main", from_user=message.from_user.id))
+
+async def send_reminders():
+    logging.info("Starting reminders task")
+    while True:
+        try:
+            await asyncio.sleep(24 * 60 * 60)  # 24 часа
+            async with db.pool.acquire() as conn:
+                users = await conn.fetch("SELECT user_id, language FROM users")
+                now = datetime.now()
+                for user in users:
+                    language = user["language"]
+                    quote = random.choice(QUOTES[language])
+                    subscription = await db.get_subscription(user["user_id"])
+                    msg = f"⏰ {quote}"
+                    if subscription and subscription["subscription_end"]:
+                        days_left = (subscription["subscription_end"] - now).days
+                        if days_left <= 3 and days_left > 0:
+                            msg += f"\n\n{TEXTS[language]['subscription_end'].format(days=days_left)}"
+                        elif days_left <= 0:
+                            await db.reset_subscription(user["user_id"])
+                            msg += f"\n\n{TEXTS[language]['subscription_expired']}"
+                    await bot.send_message(user["user_id"], msg, reply_markup=get_quick_menu(language))
+        except Exception as e:
+            logging.error(f"Error in send_reminders: {e}")
+            await asyncio.sleep(60)  # Пауза на 1 минуту перед повторной попыткой
+
+async def keep_alive():
+    """Периодическая задача для поддержания активности бота"""
+    while True:
+        try:
+            logging.info("Bot is alive and checking activity...")
+            await asyncio.sleep(300)  # Проверка каждые 5 минут
+            async with db.pool.acquire() as conn:
+                await conn.execute("SELECT 1")  # Простой запрос для проверки подключения
+        except Exception as e:
+            logging.error(f"Error in keep_alive: {e}")
+            await asyncio.sleep(60)  # Пауза на 1 минуту перед повторной попыткой
+
+async def on_startup(_):
+    logging.info("Entering on_startup function")
+    try:
+        await db.connect()
+        logging.info("Database connected successfully")
+        await db.create_tables()
+        logging.info("Tables created successfully")
+        await bot.set_webhook(WEBHOOK_URL)
+        logging.info(f"Webhook set to {WEBHOOK_URL} successfully")
+        # Запускаем задачу для поддержания активности
+        asyncio.create_task(keep_alive())
+        asyncio.create_task(send_reminders())
+        logging.info("Reminders and keep_alive tasks created")
+    except Exception as e:
+        logging.error(f"Startup failed: {e}")
+        raise
+
+async def on_shutdown(_):
+    logging.info("Shutting down bot... Checking for active connections or errors")
+    try:
+        await bot.delete_webhook()
+        logging.info("Webhook deleted successfully")
+    except Exception as e:
+        logging.error(f"Error deleting webhook: {e}")
+    if db.pool:
+        try:
+            await db.pool.close()
+            logging.info("Database connection pool closed successfully")
+        except Exception as e:
+            logging.error(f"Error closing database pool: {e}")
+    logging.info("Shutdown completed")
+
+# Добавляем health check endpoint
+async def health_check(request):
+    logging.info("Health check received")
+    return web.Response(text="OK", status=200)
+
+# Регистрируем отладочные и быстрые обработчики
+dp.message.register(catch_all_messages)
+dp.callback_query.register(catch_all_callbacks)
+dp.message.register(quick_daily_plan)
+dp.message.register(quick_switch_language)
+dp.message.register(quick_back_to_main)
+
+# Создание приложения и запуск
+app = web.Application()
+app.on_startup.append(on_startup)
+app.on_shutdown.append(on_shutdown)
+app.router.add_get("/", health_check)  # Добавляем health check
+request_handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
+request_handler.register(app, path=WEBHOOK_PATH)
+setup_application(app, dp, bot=bot)
+
+if __name__ == "__main__":
+    logging.info("Preparing to run bot...")
+    logging.info("Web app setup complete")
+    logging.info(f"Running on http://{WEBAPP_HOST}:{WEBAPP_PORT}")
+    web.run_app(app, host=WEBAPP_HOST, port=WEBAPP_PORT)
