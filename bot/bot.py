@@ -157,11 +157,45 @@ async def generate_daily_recipe(user_data):
 async def start(message: types.Message, state: FSMContext):
     logging.info(f"Received /start from user {message.from_user.id}")
     try:
+        # Проверяем, существует ли пользователь в базе
+        user = await db.get_user(message.from_user.id)
+        if user:
+            language = user["language"]
+            subscription = await db.get_subscription(message.from_user.id)
+            now = datetime.now()
+            logging.info(f"User {message.from_user.id} already exists. Subscription status: {subscription}")
+
+            # Если есть активная подписка или триал не использован, предлагаем меню
+            if subscription and subscription["subscription_end"] and subscription["subscription_end"] > now:
+                await message.reply(TEXTS[language]["back_to_main"], reply_markup=get_main_menu(language), parse_mode="Markdown")
+                logging.info(f"User {message.from_user.id} has active subscription, showing main menu")
+                return
+            elif not subscription or not subscription["trial_used"]:
+                await db.reset_trial(message.from_user.id)  # Сбрасываем триал для нового доступа
+                await message.reply(TEXTS[language]["back_to_main"], reply_markup=get_main_menu(language), parse_mode="Markdown")
+                logging.info(f"User {message.from_user.id} has no trial used, showing main menu with trial reset")
+                return
+
+            # Если триал использован, предлагаем подписку
+            markup = types.InlineKeyboardMarkup(inline_keyboard=[
+                [types.InlineKeyboardButton(text="💫 Stars (50 XTR)", callback_data="pay_stars"),
+                 types.InlineKeyboardButton(text="💳 Карта (500 UAH)", callback_data="pay_stripe")],
+                [types.InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_main")]
+            ])
+            await message.reply(
+                "Подписка на 30 дней доступа к дневному рациону:",
+                reply_markup=markup
+            )
+            logging.info(f"Offered subscription for user {message.from_user.id} because trial_used=True")
+            return
+
+        # Если пользователь не найден, начинаем регистрацию
         await message.reply("💪 *Привет! Я MuscleMenu!* Помогу тебе набрать массу.\nДавай зарегистрируем тебя. Как тебя зовут?", parse_mode="Markdown")
         await state.set_state(UserForm.name)
         logging.info(f"Sent welcome message and set state for user {message.from_user.id}")
     except Exception as e:
         logging.error(f"Error in start handler for user {message.from_user.id}: {e}")
+        await message.reply("Произошла ошибка. Попробуйте позже.", parse_mode="Markdown")
 
 @dp.message(UserForm.name)
 async def process_name(message: types.Message, state: FSMContext):
@@ -410,23 +444,40 @@ async def successful_payment(message: types.Message):
 async def send_reminders():
     logging.info("Starting reminders task")
     while True:
-        await asyncio.sleep(24 * 60 * 60)
-        async with db.pool.acquire() as conn:
-            users = await conn.fetch("SELECT user_id, language FROM users")
-            now = datetime.now()
-            for user in users:
-                language = user["language"]
-                quote = random.choice(QUOTES[language])
-                subscription = await db.get_subscription(user["user_id"])
-                msg = f"⏰ {quote}"
-                if subscription and subscription["subscription_end"]:
-                    days_left = (subscription["subscription_end"] - now).days
-                    if days_left <= 3 and days_left > 0:
-                        msg += f"\n\n{TEXTS[language]['subscription_end'].format(days=days_left)}"
-                    elif days_left <= 0:
-                        await db.reset_subscription(user["user_id"])
-                        msg += f"\n\n{TEXTS[language]['subscription_expired']}"
-                await bot.send_message(user["user_id"], msg, reply_markup=get_main_menu(language))
+        try:
+            await asyncio.sleep(24 * 60 * 60)  # 24 часа
+            async with db.pool.acquire() as conn:
+                users = await conn.fetch("SELECT user_id, language FROM users")
+                now = datetime.now()
+                for user in users:
+                    language = user["language"]
+                    quote = random.choice(QUOTES[language])
+                    subscription = await db.get_subscription(user["user_id"])
+                    msg = f"⏰ {quote}"
+                    if subscription and subscription["subscription_end"]:
+                        days_left = (subscription["subscription_end"] - now).days
+                        if days_left <= 3 and days_left > 0:
+                            msg += f"\n\n{TEXTS[language]['subscription_end'].format(days=days_left)}"
+                        elif days_left <= 0:
+                            await db.reset_subscription(user["user_id"])
+                            msg += f"\n\n{TEXTS[language]['subscription_expired']}"
+                    await bot.send_message(user["user_id"], msg, reply_markup=get_main_menu(language))
+        except Exception as e:
+            logging.error(f"Error in send_reminders: {e}")
+            await asyncio.sleep(60)  # Пауза на 1 минуту перед повторной попыткой
+
+async def keep_alive():
+    """Периодическая задача для поддержания активности бота"""
+    while True:
+        try:
+            logging.info("Bot is alive and checking activity...")
+            await asyncio.sleep(300)  # Проверка каждые 5 минут
+            # Можно добавить простой запрос к базе или пинг сервера
+            async with db.pool.acquire() as conn:
+                await conn.execute("SELECT 1")  # Простой запрос для проверки подключения
+        except Exception as e:
+            logging.error(f"Error in keep_alive: {e}")
+            await asyncio.sleep(60)  # Пауза на 1 минуту перед повторной попыткой
 
 async def on_startup(_):
     logging.info("Entering on_startup function")
@@ -437,23 +488,39 @@ async def on_startup(_):
         logging.info("Tables created successfully")
         await bot.set_webhook(WEBHOOK_URL)
         logging.info(f"Webhook set to {WEBHOOK_URL}")
+        # Запускаем задачу для поддержания активности
+        asyncio.create_task(keep_alive())
         asyncio.create_task(send_reminders())
-        logging.info("Reminders task created")
+        logging.info("Reminders and keep_alive tasks created")
     except Exception as e:
         logging.error(f"Startup failed: {e}")
         raise
 
 async def on_shutdown(_):
-    logging.info("Shutting down bot...")
-    await bot.delete_webhook()
+    logging.info("Shutting down bot... Checking for active connections or errors")
+    try:
+        await bot.delete_webhook()
+        logging.info("Webhook deleted successfully")
+    except Exception as e:
+        logging.error(f"Error deleting webhook: {e}")
     if db.pool:
-        await db.pool.close()
-    logging.info("Webhook stopped and DB closed")
+        try:
+            await db.pool.close()
+            logging.info("Database connection pool closed successfully")
+        except Exception as e:
+            logging.error(f"Error closing database pool: {e}")
+    logging.info("Shutdown completed")
+
+# Добавляем health check endpoint
+async def health_check(request):
+    logging.info("Health check received")
+    return web.Response(text="OK", status=200)
 
 # Создание приложения и запуск
 app = web.Application()
 app.on_startup.append(on_startup)
 app.on_shutdown.append(on_shutdown)
+app.router.add_get("/", health_check)  # Добавляем health check
 request_handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
 request_handler.register(app, path=WEBHOOK_PATH)
 setup_application(app, dp, bot=bot)
@@ -461,4 +528,5 @@ setup_application(app, dp, bot=bot)
 if __name__ == "__main__":
     logging.info("Preparing to run bot...")
     logging.info("Web app setup complete")
+    logging.info(f"Running on http://{WEBAPP_HOST}:{WEBAPP_PORT}")
     web.run_app(app, host=WEBAPP_HOST, port=WEBAPP_PORT)
