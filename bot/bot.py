@@ -647,25 +647,40 @@ async def successful_payment(message: types.Message):
 # Добавляем обработчики для отладки
 @dp.message()
 async def catch_all_messages(message: types.Message):
-    logging.info(f"Caught unhandled message from user {message.from_user.id}: {message.text}")
+    logging.info(f"Caught unhandled message from user {message.from_user.id}: {message.text} (content_type: {message.content_type})")
 
 @dp.callback_query()
 async def catch_all_callbacks(callback: types.CallbackQuery):
     logging.info(f"Caught unhandled callback from user {callback.from_user.id}: {callback.data}")
 
-@dp.message(lambda message: message.text == "🍽")
+@dp.message(lambda message: message.text in ["🍽", "🍽", "🍽"])
 async def quick_daily_plan(message: types.Message):
-    logging.info(f"Received quick menu 'Daily Plan' from user {message.from_user.id}")
+    logging.info(f"Received quick menu 'Daily Plan' from user {message.from_user.id} with text: {message.text}")
+    user = await db.get_user(message.from_user.id)
+    if not user:
+        await message.reply("Сначала зарегистрируйтесь!", reply_markup=get_quick_menu("ru"))
+        return
+    language = user["language"]
     await daily_plan(types.CallbackQuery(message=message, data="daily_plan", from_user=message.from_user))
 
-@dp.message(lambda message: message.text == "🌐 Язык" or message.text == "🌐 Language" or message.text == "🌐 Мова")
+@dp.message(lambda message: message.text in ["🌐 Язык", "🌐 Language", "🌐 Мова"])
 async def quick_switch_language(message: types.Message):
-    logging.info(f"Received quick menu 'Language' from user {message.from_user.id}")
-    await switch_language(types.CallbackQuery(message=message, data="switch_language", from_user=message.from_user))
+    logging.info(f"Received quick menu 'Language' from user {message.from_user.id} with text: {message.text}")
+    user = await db.get_user(message.from_user.id)
+    if not user:
+        await message.reply("Сначала зарегистрируйтесь!", reply_markup=get_quick_menu("ru"))
+        return
+    language = user["language"]
+    await switch_language(types.CallbackQuery(message=message, data="switch_language", from_user=message.from_user.id))
 
-@dp.message(lambda message: message.text == "⬅️ Назад" or message.text == "⬅️ Back")
+@dp.message(lambda message: message.text in ["⬅️ Назад", "⬅️ Back"])
 async def quick_back_to_main(message: types.Message):
-    logging.info(f"Received quick menu 'Back' from user {message.from_user.id}")
+    logging.info(f"Received quick menu 'Back' from user {message.from_user.id} with text: {message.text}")
+    user = await db.get_user(message.from_user.id)
+    if not user:
+        await message.reply("Сначала зарегистрируйтесь!", reply_markup=get_quick_menu("ru"))
+        return
+    language = user["language"]
     await back_to_main(types.CallbackQuery(message=message, data="back_to_main", from_user=message.from_user.id))
 
 async def send_reminders():
