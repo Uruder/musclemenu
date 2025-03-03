@@ -162,8 +162,8 @@ async def generate_daily_recipe(user_data):
     height = user_data["height"]
     weight = user_data["weight"]
     age = user_data["age"]
-    activity_level = user_data["activity_level"].lower()  # Изменено с "activity" на "activity_level"
-    workouts = user_data["workouts"]
+    activity_level = user_data["activity_level"].lower()  # Убедились, что используем "activity_level"
+    workouts_per_week = user_data["workouts_per_week"]  # Изменено с "workouts" на "workouts_per_week"
     preferences = user_data.get("preferences", "").lower().split(", ") if user_data.get("preferences") else []
     goal = user_data.get("goal", "gain_mass")  # По умолчанию — набор массы
 
@@ -180,7 +180,7 @@ async def generate_daily_recipe(user_data):
         "середній": 1.55,
         "високий": 1.9
     }
-    total_calories = bmr * activity_multipliers[activity_level] + (workouts * 300)  # Добавляем калории для тренировок
+    total_calories = bmr * activity_multipliers[activity_level] + (workouts_per_week * 300)  # Добавляем калории для тренировок
 
     # Корректируем калории в зависимости от цели
     if goal == "gain_mass":
@@ -327,12 +327,12 @@ async def process_age(message: types.Message, state: FSMContext):
 async def process_activity(message: types.Message, state: FSMContext):
     current_state = await state.get_state()
     logging.info(f"Received message '{message.text}' from user {message.from_user.id} with state {current_state}")
-    activity_level = message.text.lower()  # Изменено с "activity" на "activity_level"
+    activity_level = message.text.lower()  # Убедились, что используем "activity_level"
     if activity_level not in ["низкая", "средняя", "высокая", "low", "medium", "high", "низький", "середній", "високий"]:
         await message.reply("Укажи: низкая/средняя/высокая (или low/medium/high, низький/середній/високий). Какой у тебя уровень активности?")
         return
     try:
-        await state.update_data(activity_level=activity_level)  # Изменено с "activity" на "activity_level"
+        await state.update_data(activity_level=activity_level)  # Убедились, что используем "activity_level"
         await message.reply("Сколько у тебя тренировок в неделю?")
         await state.set_state(UserForm.workouts)
         logging.info(f"Processed activity_level and set workouts state for user {message.from_user.id}")
@@ -344,11 +344,11 @@ async def process_workouts(message: types.Message, state: FSMContext):
     current_state = await state.get_state()
     logging.info(f"Received message '{message.text}' from user {message.from_user.id} with state {current_state}")
     try:
-        workouts = int(message.text)
-        await state.update_data(workouts=workouts)
+        workouts_per_week = int(message.text)  # Изменено с "workouts" на "workouts_per_week"
+        await state.update_data(workouts_per_week=workouts_per_week)  # Изменено с "workouts" на "workouts_per_week"
         await message.reply("Какая твоя цель? (набор массы/снижение веса/поддержание веса)\nУкажи на русском, английском или украинском (например: набор массы, weight loss, набір маси).")
         await state.set_state(UserForm.goal)
-        logging.info(f"Processed workouts and set goal state for user {message.from_user.id}")
+        logging.info(f"Processed workouts_per_week and set goal state for user {message.from_user.id}")
     except ValueError:
         await message.reply("Пожалуйста, укажи число. Сколько у тебя тренировок в неделю?")
     except Exception as e:
@@ -391,7 +391,7 @@ async def process_preferences(message: types.Message, state: FSMContext):
         logging.info(f"Data from state: {data}")
         await db.add_user(
             message.from_user.id, data["name"], data["height"], data["weight"],
-            data["age"], data["activity_level"], data["workouts"], preferences, "ru", data.get("goal", "gain_mass")  # Изменено с "activity" на "activity_level"
+            data["age"], data["activity_level"], data["workouts_per_week"], preferences, "ru", data.get("goal", "gain_mass")  # Убедились, что используем "activity_level" и "workouts_per_week"
         )
         await message.reply("✅ *Данные сохранены!* Что дальше?", reply_markup=get_main_menu("ru"), parse_mode="Markdown")
         await state.clear()
