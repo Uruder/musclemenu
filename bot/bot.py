@@ -162,7 +162,7 @@ async def generate_daily_recipe(user_data):
     height = user_data["height"]
     weight = user_data["weight"]
     age = user_data["age"]
-    activity = user_data["activity"].lower()
+    activity_level = user_data["activity_level"].lower()  # Изменено с "activity" на "activity_level"
     workouts = user_data["workouts"]
     preferences = user_data.get("preferences", "").lower().split(", ") if user_data.get("preferences") else []
     goal = user_data.get("goal", "gain_mass")  # По умолчанию — набор массы
@@ -180,7 +180,7 @@ async def generate_daily_recipe(user_data):
         "середній": 1.55,
         "високий": 1.9
     }
-    total_calories = bmr * activity_multipliers[activity] + (workouts * 300)  # Добавляем калории для тренировок
+    total_calories = bmr * activity_multipliers[activity_level] + (workouts * 300)  # Добавляем калории для тренировок
 
     # Корректируем калории в зависимости от цели
     if goal == "gain_mass":
@@ -327,15 +327,15 @@ async def process_age(message: types.Message, state: FSMContext):
 async def process_activity(message: types.Message, state: FSMContext):
     current_state = await state.get_state()
     logging.info(f"Received message '{message.text}' from user {message.from_user.id} with state {current_state}")
-    activity = message.text.lower()
-    if activity not in ["низкая", "средняя", "высокая", "low", "medium", "high", "низький", "середній", "високий"]:
+    activity_level = message.text.lower()  # Изменено с "activity" на "activity_level"
+    if activity_level not in ["низкая", "средняя", "высокая", "low", "medium", "high", "низький", "середній", "високий"]:
         await message.reply("Укажи: низкая/средняя/высокая (или low/medium/high, низький/середній/високий). Какой у тебя уровень активности?")
         return
     try:
-        await state.update_data(activity=activity)
+        await state.update_data(activity_level=activity_level)  # Изменено с "activity" на "activity_level"
         await message.reply("Сколько у тебя тренировок в неделю?")
         await state.set_state(UserForm.workouts)
-        logging.info(f"Processed activity and set workouts state for user {message.from_user.id}")
+        logging.info(f"Processed activity_level and set workouts state for user {message.from_user.id}")
     except Exception as e:
         logging.error(f"Error in process_activity for user {message.from_user.id}: {e}")
 
@@ -391,7 +391,7 @@ async def process_preferences(message: types.Message, state: FSMContext):
         logging.info(f"Data from state: {data}")
         await db.add_user(
             message.from_user.id, data["name"], data["height"], data["weight"],
-            data["age"], data["activity"], data["workouts"], preferences, "ru", data.get("goal", "gain_mass")
+            data["age"], data["activity_level"], data["workouts"], preferences, "ru", data.get("goal", "gain_mass")  # Изменено с "activity" на "activity_level"
         )
         await message.reply("✅ *Данные сохранены!* Что дальше?", reply_markup=get_main_menu("ru"), parse_mode="Markdown")
         await state.clear()
