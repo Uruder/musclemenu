@@ -11,7 +11,7 @@ class Database:
         logging.info("Database instance created")
 
     async def connect(self):
-        logging.info("Attempting to connect to database...")
+        logging.info("Attempting to connect to database with DATABASE_URL: %s", os.getenv("DATABASE_URL", "Not set"))
         try:
             self.pool = await asyncpg.create_pool(os.getenv("DATABASE_URL"))
             logging.info("Database connection established successfully")
@@ -32,8 +32,9 @@ class Database:
                     activity_level TEXT NOT NULL,
                     workouts_per_week INTEGER NOT NULL,
                     preferences TEXT,
-                    language TEXT DEFAULT 'ru',
+                    language TEXT DEFAULT 'en',
                     goal TEXT DEFAULT 'gain_mass',
+                    last_weight_update TIMESTAMP,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
                 CREATE TABLE IF NOT EXISTS payments (
@@ -45,7 +46,7 @@ class Database:
             """)
             logging.info("Tables created successfully")
 
-    async def add_user(self, user_id, name, height, weight, age, activity_level, workouts_per_week, preferences="", language="ru", goal="gain_mass"):
+    async def add_user(self, user_id, name, height, weight, age, activity_level, workouts_per_week, preferences="", language="en", goal="gain_mass"):
         async with self.pool.acquire() as conn:
             await conn.execute("""
                 INSERT INTO users (user_id, name, height, weight, age, activity_level, workouts_per_week, preferences, language, goal)
@@ -113,3 +114,10 @@ class Database:
                 UPDATE users SET language = $2 WHERE user_id = $1
             """, user_id, language)
             logging.info(f"Language updated to {language} for user {user_id}")
+
+    async def update_user_weight_update(self, user_id, last_update, new_weight):
+        async with self.pool.acquire() as conn:
+            await conn.execute("""
+                UPDATE users SET last_weight_update = $2, weight = $3 WHERE user_id = $1
+            """, user_id, last_update, new_weight)
+            logging.info(f"Updated weight and last_weight_update for user {user_id}")
